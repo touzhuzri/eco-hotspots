@@ -773,6 +773,122 @@ body {
 /* 旧 .hotspot（SVG 时代）若残留则隐藏 */
 .hotspot { display: none; }
 
+/* ── 首屏加载：世界树生长 ── */
+.boot-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(ellipse at 50% 60%, #0a1210 0%, #03040a 55%, #020308 100%);
+  transition: opacity 0.55s ease, visibility 0.55s ease;
+}
+
+.boot-loader.is-done {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.boot-inner {
+  text-align: center;
+  width: min(320px, 86vw);
+}
+
+.boot-tree {
+  width: 120px;
+  height: 160px;
+  margin: 0 auto 18px;
+}
+
+.boot-svg { width: 100%; height: 100%; overflow: visible; }
+
+.boot-soil {
+  transform-origin: 60px 148px;
+  animation: boot-soil 1.4s ease-out both;
+}
+
+.boot-root {
+  stroke-dasharray: 80;
+  stroke-dashoffset: 80;
+  animation: boot-draw 1.6s 0.15s ease-out forwards;
+}
+
+.boot-trunk {
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  animation: boot-draw 1.8s 0.5s ease-out forwards;
+}
+
+.boot-limb {
+  stroke-dasharray: 90;
+  stroke-dashoffset: 90;
+  animation: boot-draw 1.4s 1.2s ease-out forwards;
+}
+
+.boot-crown {
+  transform-origin: 60px 48px;
+  transform: scale(0.2);
+  opacity: 0;
+  animation: boot-bloom 1.5s 1.6s ease-out forwards;
+}
+
+.boot-crown2 { animation-delay: 1.85s; }
+.boot-crown3 { animation-delay: 2.05s; }
+
+@keyframes boot-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes boot-soil {
+  from { transform: scaleX(0.2); opacity: 0; }
+  to { transform: scaleX(1); opacity: 0.35; }
+}
+
+@keyframes boot-bloom {
+  from { transform: scale(0.15); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.boot-title {
+  margin: 0 0 6px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: #e8eef8;
+}
+
+.boot-sub {
+  margin: 0 0 16px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  min-height: 1.2em;
+}
+
+.boot-bar {
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(140, 160, 190, 0.18);
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.boot-bar-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #c9a227, #5ecf7a);
+  transition: width 0.25s ease;
+}
+
+.boot-pct {
+  margin: 0;
+  font-size: 0.72rem;
+  color: rgba(201, 162, 39, 0.85);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ── 竖屏引导（手机横屏≈桌面） ── */
 .rotate-gate {
   position: fixed;

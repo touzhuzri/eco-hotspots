@@ -52,17 +52,40 @@ function setupOrientationGate() {
 async function boot() {
   setupOrientationGate();
 
+  const bootLoader = document.getElementById("bootLoader");
+  const bootStage = document.getElementById("bootStage");
+  const bootBar = document.getElementById("bootBar");
+  const bootPct = document.getElementById("bootPct");
+
+  function setBoot(stage, p) {
+    if (bootStage && stage) bootStage.textContent = stage;
+    const v = Math.max(0, Math.min(1, p == null ? 0 : p));
+    if (bootBar) bootBar.style.width = `${Math.round(v * 100)}%`;
+    if (bootPct) bootPct.textContent = `${Math.round(v * 100)}%`;
+  }
+
+  function finishBoot() {
+    setBoot("世界树已就绪", 1);
+    requestAnimationFrame(() => {
+      bootLoader?.classList.add("is-done");
+      setTimeout(() => bootLoader?.setAttribute("hidden", ""), 600);
+    });
+  }
+
   const sceneEl = document.getElementById("scene");
   const filtersEl = document.getElementById("filters");
   const detailEl = document.getElementById("detail");
   const metaNoteEl = document.getElementById("metaNote");
   const footerEl = document.getElementById("footerNote");
 
-  await loadData();
+  await loadData({ onStage: setBoot });
+  setBoot("正在生成点云世界树…", 0.85);
   setLoaded(true);
 
+  // 让一帧绘制进度条，再同步建场景（22 万点）
+  await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 30)));
   const scene = mountTreeScene(sceneEl);
-  // 场景先建点云，筛选数字才与画布一致
+  setBoot("正在点亮产物星…", 0.95);
   const filters = mountFilters(filtersEl);
   const detail = mountDetailPanel(detailEl);
 
@@ -82,10 +105,15 @@ async function boot() {
   bindHashChange(rerenderAll);
   applyHash();
   rerenderAll();
+  finishBoot();
 }
 
 boot().catch((e) => {
   console.error(e);
+  const bootLoader = document.getElementById("bootLoader");
+  const bootStage = document.getElementById("bootStage");
+  if (bootStage) bootStage.textContent = "加载失败，请刷新重试";
+  bootLoader?.classList.add("is-done");
   const detailEl = document.getElementById("detail");
   if (detailEl) {
     detailEl.innerHTML = `<div class="detail-empty"><h2>加载失败</h2><p>${String(e.message || e)}</p></div>`;
