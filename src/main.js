@@ -6,7 +6,52 @@ import { mountTreeScene } from "./scene/TreeScene.js";
 import { mountFilters } from "./ui/Filters.js";
 import { mountDetailPanel } from "./ui/DetailPanel.js";
 
+/** 竖屏手机提示横屏；尽量在首次手势后尝试锁定横屏 */
+function setupOrientationGate() {
+  const gate = document.getElementById("rotateGate");
+  if (!gate) return;
+
+  function isPortraitPhone() {
+    const coarse = window.matchMedia("(pointer: coarse)").matches;
+    const portrait = window.matchMedia("(orientation: portrait)").matches;
+    const narrow = window.innerWidth <= 720;
+    return coarse && portrait && narrow;
+  }
+
+  function sync() {
+    gate.hidden = !isPortraitPhone();
+  }
+
+  async function tryLockLandscape() {
+    try {
+      const so = screen.orientation;
+      if (so && typeof so.lock === "function") {
+        await so.lock("landscape");
+        sync();
+      }
+    } catch (_) {
+      // 浏览器拒绝锁定时仍靠 CSS 提示横屏
+    }
+  }
+
+  window.addEventListener("orientationchange", sync);
+  window.addEventListener("resize", sync);
+  // 用户轻点引导层时再试一次锁横屏（需手势）
+  gate.addEventListener("click", tryLockLandscape);
+  document.addEventListener(
+    "pointerdown",
+    function once() {
+      document.removeEventListener("pointerdown", once);
+      if (isPortraitPhone()) tryLockLandscape();
+    },
+    { passive: true }
+  );
+  sync();
+}
+
 async function boot() {
+  setupOrientationGate();
+
   const sceneEl = document.getElementById("scene");
   const filtersEl = document.getElementById("filters");
   const detailEl = document.getElementById("detail");

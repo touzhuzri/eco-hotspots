@@ -2,7 +2,10 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>天然产物 · 生态挂点</title>
   <link rel="stylesheet" href="css/styles.css" />
   <script type="importmap">
@@ -15,6 +18,14 @@
   </script>
 </head>
 <body>
+  <!-- 竖屏手机：提示横屏（横屏布局≈桌面） -->
+  <div class="rotate-gate" id="rotateGate" hidden>
+    <div class="rotate-card">
+      <div class="rotate-icon" aria-hidden="true"></div>
+      <p class="rotate-title">请横屏浏览</p>
+      <p class="rotate-sub">横屏后可获得与电脑一致的观察视角</p>
+    </div>
+  </div>
   <div class="app">
     <!-- UI 已收进场景右上角 ⚙；筛选可由设置或快捷键扩展 -->
     <header class="topbar topbar-hidden" hidden>
@@ -25,7 +36,7 @@
     <main class="layout">
       <section class="scene-panel" aria-label="生态树场景">
         <div class="scene" id="scene"></div>
-        <p class="scene-hint">拖拽旋转 · 滚轮大幅飞近/拉远 · 点击产物星</p>
+        <p class="scene-hint">拖拽旋转 · 滚轮/双指缩放 · 点击产物星</p>
       </section>
       <aside class="detail" id="detail" aria-live="polite"></aside>
     </main>
