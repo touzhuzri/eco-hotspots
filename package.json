@@ -1,0 +1,14 @@
+{
+  "name": "eco-hotspots",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "天然产物生态挂点 · WebGL 星点树",
+  "scripts": {
+    "dev": "python -m http.server 5173",
+    "vendor:three": "node scripts/copy-three.mjs"
+  },
+  "dependencies": {
+    "three": "^0.169.0"
+  }
+}

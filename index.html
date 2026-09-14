@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>天然产物 · 生态挂点</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.169.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.169.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div class="app">
+    <!-- UI 已收进场景右上角 ⚙；筛选可由设置或快捷键扩展 -->
+    <header class="topbar topbar-hidden" hidden>
+      <div class="filters" id="filters" role="group" aria-label="按生物类群筛选"></div>
+      <p class="meta-note" id="metaNote"></p>
+    </header>
+
+    <main class="layout">
+      <section class="scene-panel" aria-label="生态树场景">
+        <div class="scene" id="scene"></div>
+        <p class="scene-hint">拖拽旋转 · 滚轮大幅飞近/拉远 · 点击产物星</p>
+      </section>
+      <aside class="detail" id="detail" aria-live="polite"></aside>
+    </main>
+
+    <footer class="footer">
+      <p id="footerNote"></p>
+      <p style="margin-top:4px;opacity:.8">
+        LOTUS（CC0）骨架 ·
+        <a href="https://doi.org/10.7554/eLife.70780" target="_blank" rel="noopener">论文</a>
+        · 非用药建议
+      </p>
+    </footer>
+  </div>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
