@@ -5,7 +5,7 @@ WebGL 星点世界树：LOTUS 天然产物结构云挂载在生态树上，可�
 ## 本地预览
 
 ```powershell
-cd D:\shijieshu
+cd xxxxx
 python -m http.server 5173
 # 打开 http://127.0.0.1:5173/
 ## 数据说明
