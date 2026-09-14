@@ -10,4 +10,6 @@ python -m http.server 5173
 # 打开 http://127.0.0.1:5173/
 ## 数据说明
 
+可访问  https://eco-hotspots.vercel.app/   体验
+
 LOTUS frozen export（CC0）骨架，仅作科学传播与教学演示，**不构成用药建议**。
