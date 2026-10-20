@@ -199,11 +199,19 @@ function sampleTreePoint(rnd, P, g) {
   const r = rnd();
   // 冠 36% · 干/枝 26% · 根 18% · 土 16% · 空 4%
   if (r < 0.36) {
+    // 拒绝采样；若 22 次都没落在冠内，保留密度最高的候选点作为兜底。
+    // 注意：不要回退到冠心 (0, CY, 0) —— 全量结构云下这里会叠出数千点的大团。
+    let best = null;
+    let bestRho = -1;
     for (let k = 0; k < 22; k++) {
       const x = (rnd() * 2 - 1) * g.R * 1.0;
       const y = g.CY + (rnd() * 2 - 1) * g.half * 1.25;
       const z = (rnd() * 2 - 1) * g.R * 1.0;
       const rho = canopyField(x, y, z, g);
+      if (rho > bestRho) {
+        bestRho = rho;
+        best = { x, y, z };
+      }
       if (rho > 0.08 && rnd() < rho * 0.9) {
         const j = 0.01 * g.R;
         const kingdom = rnd() < 0.78 ? "植物" : rnd() < 0.92 ? "昆虫" : "生态角色";
@@ -216,7 +224,13 @@ function sampleTreePoint(rnd, P, g) {
         };
       }
     }
-    return { x: 0, y: g.CY, z: 0, layer: "canopy", kingdom: "植物" };
+    return {
+      x: best.x,
+      y: best.y,
+      z: best.z,
+      layer: "canopy",
+      kingdom: "植物",
+    };
   }
 
   if (r < 0.62) {
