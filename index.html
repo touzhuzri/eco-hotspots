@@ -17,38 +17,27 @@
   }
   </script>
 </head>
-<body>
+<body class="ui-intro">
   <!-- 首屏加载：世界树生长 -->
   <div class="boot-loader" id="bootLoader" role="status" aria-live="polite">
     <div class="boot-inner">
-      <div class="boot-tree" aria-hidden="true">
-        <svg viewBox="0 0 120 160" class="boot-svg">
+      <!-- 校徽：进入时圆形绽开，外圈同时作为加载进度环 -->
+      <div class="boot-emblem">
+        <span class="boot-halo" aria-hidden="true"></span>
+        <svg class="boot-orbit" viewBox="0 0 240 240" aria-hidden="true">
           <defs>
-            <linearGradient id="bootTrunk" x1="0" y1="1" x2="0" y2="0">
-              <stop offset="0%" stop-color="#c9a227"/>
-              <stop offset="100%" stop-color="#e8c56a"/>
-            </linearGradient>
-            <linearGradient id="bootLeaf" x1="0" y1="1" x2="0" y2="0">
-              <stop offset="0%" stop-color="#2d6b3a"/>
-              <stop offset="100%" stop-color="#5ecf7a"/>
+            <linearGradient id="bootRingGrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#2fbf70"/>
+              <stop offset="68%" stop-color="#7ad59a"/>
+              <stop offset="100%" stop-color="#c9a227"/>
             </linearGradient>
           </defs>
-          <!-- 土 -->
-          <ellipse class="boot-soil" cx="60" cy="148" rx="42" ry="8" fill="#c9a227" opacity="0.35"/>
-          <!-- 根 -->
-          <path class="boot-root" d="M60 140 C48 136 36 142 28 148 M60 140 C72 136 84 142 92 148 M60 140 C54 144 48 150 44 156 M60 140 C66 144 72 150 76 156"
-                fill="none" stroke="url(#bootTrunk)" stroke-width="2.2" stroke-linecap="round"/>
-          <!-- 干 -->
-          <path class="boot-trunk" d="M60 140 C58 110 62 90 60 55"
-                fill="none" stroke="url(#bootTrunk)" stroke-width="3.2" stroke-linecap="round"/>
-          <!-- 枝 -->
-          <path class="boot-limb" d="M60 85 C48 78 40 70 34 58 M60 75 C72 68 80 60 86 48 M60 62 C50 56 44 48 40 40"
-                fill="none" stroke="url(#bootTrunk)" stroke-width="2" stroke-linecap="round"/>
-          <!-- 冠 -->
-          <ellipse class="boot-crown" cx="60" cy="42" rx="36" ry="28" fill="url(#bootLeaf)" opacity="0.85"/>
-          <ellipse class="boot-crown boot-crown2" cx="48" cy="48" rx="18" ry="14" fill="#3d8b4a" opacity="0.55"/>
-          <ellipse class="boot-crown boot-crown3" cx="74" cy="50" rx="16" ry="12" fill="#3d8b4a" opacity="0.45"/>
+          <!-- 二十四节气刻度：静态的「时间」；花瓣由 bootFlora 动态生成 -->
+          <g id="bootSolarTerms"></g>
+          <circle class="boot-ring-track" cx="120" cy="120" r="112"/>
+          <circle class="boot-ring-progress" id="bootRing" cx="120" cy="120" r="112"/>
         </svg>
+        <img class="boot-emblem-img" src="assets/hzau-emblem.png" alt="华中农业大学校徽" />
       </div>
       <p class="boot-title">世界树正在生长中</p>
       <p class="boot-sub" id="bootStage">请等待…</p>
@@ -56,6 +45,10 @@
         <div class="boot-bar-fill" id="bootBar"></div>
       </div>
       <p class="boot-pct" id="bootPct">0%</p>
+      <button type="button" class="boot-hint" id="bootFullscreen" title="也可以按 F11">
+        <span class="boot-key">F11</span>
+        <span class="boot-hint-text">进入全屏 · 视野更完整</span>
+      </button>
     </div>
   </div>
 
@@ -82,6 +75,9 @@
       <aside class="detail" id="detail" aria-live="polite"></aside>
     </main>
 
+    <aside class="explore-rail" id="exploreRail" aria-label="探索导航"></aside>
+    <div class="bottom-dock" id="bottomDock" aria-label="层位与视角"></div>
+
     <footer class="footer">
       <p id="footerNote"></p>
       <p style="margin-top:4px;opacity:.8">
@@ -91,6 +87,10 @@
       </p>
     </footer>
   </div>
+  <script>
+    // 生产环境如“分子领养”服务不在同源 /api，可在这里指定完整地址：
+    // window.ECO_CLAIM_ENDPOINT = "https://your-claim-server/api";
+  </script>
   <script type="module" src="src/main.js"></script>
 </body>
 </html>

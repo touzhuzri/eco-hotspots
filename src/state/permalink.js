@@ -22,7 +22,7 @@ export function applyHash() {
   }
   const n = params.get("n");
   if (!n) return;
-  if (n.startsWith("mol:") || n.startsWith("cat:")) {
+  if (n.startsWith("mol:") || n.startsWith("cat:") || n.startsWith("ls:")) {
     if (getMoleculePoint(n)) setSelected(n);
     return;
   }

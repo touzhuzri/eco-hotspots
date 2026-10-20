@@ -1,0 +1,9 @@
+{
+  "source": "LOTUS frozen 260413",
+  "license": "CC0",
+  "rows": 709740,
+  "molecules": 227298,
+  "shards": 631,
+  "rdkit": true,
+  "generated": "2026-10-20"
+}
