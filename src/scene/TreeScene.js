@@ -577,7 +577,15 @@ export function mountTreeScene(rootEl) {
   };
   const vel = { yaw: 0, pitch: 0 };
   const DIST_MIN = 1.2;
-  const fly = { active: false, t: 0, dur: 0.95, from: null, to: null };
+  const fly = {
+    active: false,
+    t: 0,
+    dur: 1.8,
+    from: null,
+    to: null,
+    camStart: null,
+    lookStart: null,
+  };
 
   /** `~` 第一人称：指针锁定 + 隐藏光标；再按 `~` / Esc 退出 */
   let fpMode = false;
@@ -669,22 +677,31 @@ export function mountTreeScene(rootEl) {
       target.z + cam.dist * cy * cp
     );
     // 位置与注视点同速率阻尼，平移时视线不甩（A/D/Space/C 不再像转视角）
-    const k = damp(lastDt, DAMP_K);
     if (!_lookInit) {
       _look.copy(target);
       _lookInit = true;
     }
-    _look.lerp(target, k);
-    camera.position.lerp(_desired, k);
+    if (fly.active && fly.camStart && fly.lookStart) {
+      // 起飞瞬间从“实际相机位置”接管，再交给已经缓动的飞行路径，
+      // 避免预设切换第一帧被阻尼状态拽一下。
+      const enter = smootherStep(Math.min(1, fly.t * 7));
+      camera.position.lerpVectors(fly.camStart, _desired, enter);
+      _look.lerpVectors(fly.lookStart, target, enter);
+    } else {
+      const k = damp(lastDt, DAMP_K);
+      _look.lerp(target, k);
+      camera.position.lerp(_desired, k);
+    }
     _mat.lookAt(camera.position, _look, _up);
     _quat.setFromRotationMatrix(_mat);
     // 自转/拖拽/惯性期间如果仍对朝向做阻尼，视角会持续落后，
     // 快速拖动时表现为来回追、抽搐；树心也会被甩向一侧。
     // 这些纯旋转场景直接对齐 lookAt，平移（WASD）仍保留阻尼。
-    const orbiting = !fpMode && !wasdActive() && !fly.active;
+    const orbiting = !fpMode && !wasdActive();
     const snapLook =
       orbiting &&
-      (cam.auto ||
+      (fly.active ||
+        cam.auto ||
         dragging ||
         Math.abs(vel.yaw) > 1e-4 ||
         Math.abs(vel.pitch) > 1e-4);
@@ -2788,11 +2805,18 @@ export function mountTreeScene(rootEl) {
     return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
   }
 
+  /** 起止加速度为 0 的五次缓动，长距离相机飞行更稳 */
+  function smootherStep(t) {
+    return t * t * t * (t * (t * 6 - 15) + 10);
+  }
+
   /** 飞到指定注视点/距离/俯仰（视角预设） */
   function flyToView(tx, ty, tz, dist, pitch) {
     exitFP();
     fly.active = true;
     fly.t = 0;
+    fly.camStart = camera.position.clone();
+    fly.lookStart = _look.clone();
     fly.from = {
       yaw: cam.yaw,
       pitch: cam.pitch,
@@ -2826,6 +2850,8 @@ export function mountTreeScene(rootEl) {
 
     fly.active = true;
     fly.t = 0;
+    fly.camStart = camera.position.clone();
+    fly.lookStart = _look.clone();
     fly.from = {
       yaw: cam.yaw,
       pitch: cam.pitch,
@@ -3913,7 +3939,7 @@ export function mountTreeScene(rootEl) {
 
     if (fly.active) {
       fly.t += dt / fly.dur;
-      const k = ease(Math.min(1, fly.t));
+      const k = smootherStep(Math.min(1, fly.t));
       cam.yaw = fly.from.yaw + (fly.to.yaw - fly.from.yaw) * k;
       cam.pitch = fly.from.pitch + (fly.to.pitch - fly.from.pitch) * k;
       cam.dist = fly.from.dist + (fly.to.dist - fly.from.dist) * k;
@@ -4618,6 +4644,15 @@ export function mountTreeScene(rootEl) {
   window.__ecoScene = {
     get cam() {
       return { ...cam };
+    },
+    get cameraActual() {
+      return {
+        pos: camera.position.toArray(),
+        quat: camera.quaternion.toArray(),
+        viewX: viewOffsetX,
+        fly: fly.active,
+        auto: cam.auto,
+      };
     },
     get counts() {
       return {
