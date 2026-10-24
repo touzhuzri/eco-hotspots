@@ -8,6 +8,7 @@ import { mountDetailPanel } from "./ui/DetailPanel.js";
 import { mountBootFlora } from "./ui/bootFlora.js";
 import { mountExploreRail } from "./ui/ExploreRail.js";
 import { mountBottomDock } from "./ui/BottomDock.js";
+import { mountIdleIntro } from "./ui/IdleIntro.js";
 import {
   openTour,
   openAbout,
@@ -218,6 +219,7 @@ async function boot() {
       onHelp: () => openTour(),
     });
   }
+  mountIdleIntro(document.getElementById("idleIntro"));
 
   const s = stats();
   const dsMeta = meta().meta || {};
