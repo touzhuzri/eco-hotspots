@@ -1,9 +1,6 @@
 import { getMoleculeMeta } from "../engine/moleculeMeta.js";
-import {
-  classInfoFor,
-  familyInfoFor,
-  ecologyText,
-} from "../data/taxonomyInfo.js";
+import { classInfoFor, familyInfoFor } from "../data/taxonomyInfo.js";
+import { renderSmilesToStarCanvas } from "./smilesRender.js";
 
 function esc(s) {
   return String(s ?? "")
@@ -36,13 +33,13 @@ function introFor(p, meta) {
   const parts = [];
   parts.push(`由${origin}产生的${ci.zh}。`);
   if (ci.text) parts.push(ci.text);
-  parts.push(ecologyText(p.kingdom, p.layer));
   return parts.join("");
 }
 
 export function mountIdleIntro(el) {
   if (!el) return;
   let token = 0;
+  let renderSeq = 0;
 
   function hide() {
     token++;
@@ -63,6 +60,7 @@ export function mountIdleIntro(el) {
       .filter(Boolean)
       .join(" · ");
     const intro = introFor(p, meta);
+    const seq = ++renderSeq;
 
     el.innerHTML = `
       <div class="idle-intro-card">
@@ -77,16 +75,40 @@ export function mountIdleIntro(el) {
           <p class="idle-meta">${esc(metaLine || "来源未标注")}${
             formula ? ` · ${esc(formula)}` : ""
           }</p>
-          <div class="idle-smiles">
-            <span>SMILES</span>
-            <code>${esc(smiles || "暂缺")}</code>
+          <div class="idle-body">
+            <div class="idle-structure">
+              <div class="idle-structure-head"><span>SMILES</span><em>2D 星图</em></div>
+              <div class="idle-structure-canvas" id="idleStructure">
+                <span>${smiles ? "星点结构生成中…" : "SMILES 暂缺"}</span>
+              </div>
+            </div>
+            <div class="idle-vertical" data-text="${esc(intro)}" lang="zh-CN">${esc(
+              intro
+            )}</div>
           </div>
-          <div class="idle-vertical" data-text="${esc(intro)}" lang="zh-CN">${esc(
-            intro
-          )}</div>
           <p class="idle-hint">轻触返回 · 将自动回到这颗分子</p>
         </div>
       </div>`;
+
+    if (!smiles) return;
+    renderSmilesToStarCanvas(smiles, {
+      width: 360,
+      height: 460,
+      maxPoints: 5200,
+    })
+      .then((canvas) => {
+        if (seq !== renderSeq || !el.isConnected) return;
+        const slot = el.querySelector("#idleStructure");
+        if (!slot) return;
+        slot.innerHTML = "";
+        slot.appendChild(canvas);
+        canvas.className = "idle-star-canvas";
+      })
+      .catch(() => {
+        if (seq !== renderSeq) return;
+        const slot = el.querySelector("#idleStructure");
+        if (slot) slot.innerHTML = `<span>${esc(smiles)}</span>`;
+      });
   }
 
   function show(point) {
