@@ -152,6 +152,10 @@ export async function renderSmilesToStarCanvas(
   const octx = out.getContext("2d");
   octx.clearRect(0, 0, width, height);
   octx.globalCompositeOperation = "lighter";
+  // 极淡的键线先铺成“星座连线”，再叠加星点
+  octx.globalAlpha = 0.12;
+  octx.drawImage(src, 0, 0);
+  octx.globalAlpha = 1;
   let seed = 7;
   const rnd = () => {
     seed = (seed * 1664525 + 1013904223) >>> 0;

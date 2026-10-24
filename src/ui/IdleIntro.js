@@ -63,8 +63,8 @@ export function mountIdleIntro(el) {
     const cr = card.getBoundingClientRect();
     if (cr.width < 20) return;
     const nameEl = el.querySelector(".idle-name");
-    const structureEl = el.querySelector(".idle-structure-canvas");
-    const introEl = el.querySelector(".idle-vertical");
+    const structureEl = el.querySelector(".idle-structure-label");
+    const introEl = el.querySelector(".idle-vertical-wrap");
     if (!nameEl || !structureEl || !introEl) return;
 
     const W = window.innerWidth;
@@ -121,25 +121,24 @@ export function mountIdleIntro(el) {
           (_, i) => `<span style="--i:${i}"></span>`
         ).join("")}</div>
         <div class="idle-ink" aria-hidden="true"></div>
+        <div class="idle-constellation" id="idleStructure">
+          <span>${smiles ? "星点星座生成中…" : "SMILES 暂缺"}</span>
+        </div>
         <div class="idle-intro-content">
           <p class="idle-kicker">LOTUS · 待机分子</p>
-          <h2 class="idle-name" title="${esc(raw || title)}">${esc(title)}</h2>
+          <div class="idle-name-row">
+            <span class="idle-section-label">名称</span>
+            <h2 class="idle-name" title="${esc(raw || title)}">${esc(title)}</h2>
+          </div>
           <p class="idle-meta">${esc(metaLine || "来源未标注")}${
             formula ? ` · ${esc(formula)}` : ""
           }</p>
-          <div class="idle-body">
-            <div class="idle-structure">
-              <div class="idle-structure-head"><span>SMILES</span><em>2D 星图</em></div>
-              <div class="idle-structure-canvas" id="idleStructure">
-                <span>${smiles ? "星点结构生成中…" : "SMILES 暂缺"}</span>
-              </div>
-            </div>
-            <div class="idle-vertical-wrap">
-              <span class="idle-section-label">简介</span>
-              <div class="idle-vertical" data-text="${esc(intro)}" lang="zh-CN">${esc(
-                intro
-              )}</div>
-            </div>
+          <span class="idle-section-label idle-structure-label">结构式 · SMILES 星座</span>
+          <div class="idle-vertical-wrap">
+            <span class="idle-section-label">简介</span>
+            <div class="idle-vertical" data-text="${esc(intro)}" lang="zh-CN">${esc(
+              intro
+            )}</div>
           </div>
           <p class="idle-hint">轻触返回 · 将自动回到这颗分子</p>
         </div>
