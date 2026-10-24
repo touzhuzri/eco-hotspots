@@ -862,7 +862,15 @@ export function mountTreeScene(rootEl) {
     lastInteraction = performance.now();
     document.body.classList.remove("idle");
   }
-  window.addEventListener("pointermove", markInteraction, { passive: true });
+  window.addEventListener(
+    "pointermove",
+    () => {
+      // 竹简简介需要停留阅读：移动鼠标不退出，点击/滚轮/按键才返回
+      if (idleIntroShown) return;
+      markInteraction();
+    },
+    { passive: true }
+  );
   window.addEventListener("pointerdown", markInteraction, { passive: true });
   window.addEventListener("wheel", markInteraction, { passive: true });
   window.addEventListener("keydown", markInteraction);
@@ -1105,6 +1113,13 @@ export function mountTreeScene(rootEl) {
   let raf = 0;
   let labelBoxes = [];
   let lastSel = null;
+  // ── 闲置序列：先回到初始总览，再化形钟表 / 分子竹简 ──
+  let idleActive = false;
+  let idleClockPending = false;
+  let idleIntroPoint = null;
+  let idleIntroShown = false;
+  let pendingReselectId = null;
+  let suppressIdleReset = false;
   let W = 1;
   let H = 1;
   let viewOffsetX = 0;
@@ -2791,6 +2806,60 @@ export function mountTreeScene(rootEl) {
     }
   }
 
+  function startIdleSequence() {
+    idleActive = true;
+    idleClockPending = true;
+    idleIntroShown = false;
+    idleIntroPoint = null;
+
+    const st = getState();
+    if (st.selectedId) {
+      const p = productStars.find((x) => x.id === st.selectedId);
+      if (p) idleIntroPoint = { ...p };
+      suppressIdleReset = true;
+      setSelected(null);
+      suppressIdleReset = false;
+    }
+
+    window.dispatchEvent(new CustomEvent("eco:idle-intro-hide"));
+    // 先回到缩放最小 / 初始总览，再开始化形钟表
+    const centerY = ((TREE_Y1 + TREE_Y0) / 2) * WORLD_SCALE;
+    flyToView(0, centerY, 0, DIST_MAX, 0.16);
+  }
+
+  function endIdleSequence() {
+    if (!idleActive) return;
+    idleActive = false;
+    idleClockPending = false;
+    idleIntroShown = false;
+    if (clockWanted) clockWanted = 0;
+    window.dispatchEvent(new CustomEvent("eco:idle-intro-hide"));
+    if (idleIntroPoint) {
+      pendingReselectId = idleIntroPoint.id;
+      idleIntroPoint = null;
+    }
+  }
+
+  function tickIdleSequence() {
+    if (idleClockPending && !fly.active) {
+      idleClockPending = false;
+      if (!clockPrepared) prepareClock();
+    }
+    if (
+      idleIntroPoint &&
+      !idleIntroShown &&
+      clockPrepared &&
+      clockAmount > 0.5
+    ) {
+      idleIntroShown = true;
+      window.dispatchEvent(
+        new CustomEvent("eco:idle-intro", {
+          detail: { point: { ...idleIntroPoint } },
+        })
+      );
+    }
+  }
+
   function shortAngle(from, to) {
     // 模运算替代 while 收角，避免 d 为 Infinity/NaN 时死循环
     let d = to - from;
@@ -4155,13 +4224,11 @@ export function mountTreeScene(rootEl) {
     if (!introPaused) tickIntro(now);
     updateEvents(dt);
 
-    // 闲置 10 秒且未选中：淡出 UI，只留世界树
+    // 闲置 6 秒：淡出 UI，先回初始总览，再进入钟表/分子简介
     const introUI = document.body.classList.contains("ui-intro");
     if (introUI) {
       document.body.classList.remove("idle");
-    } else if (lastSel) {
-      document.body.classList.remove("idle");
-    } else if (performance.now() - lastInteraction > 10000) {
+    } else if (performance.now() - lastInteraction > 6000) {
       document.body.classList.add("idle");
     }
 
@@ -4174,18 +4241,26 @@ export function mountTreeScene(rootEl) {
       camera.setViewOffset(W, H, viewOffsetX, 0, W, H);
     }
 
-    // 闲置：树点全体飞成二十四节气钟表；任何交互则返回树
-    if (
-      idleNow &&
-      introDone &&
-      !introUI &&
-      clockWanted === 0 &&
-      !clockPrepared
-    ) {
-      prepareClock();
+    if (idleNow && introDone && !introUI && !idleActive) {
+      startIdleSequence();
     }
-    if ((!idleNow || introUI) && clockWanted) clockWanted = 0;
+    if ((!idleNow || introUI) && idleActive) {
+      endIdleSequence();
+    }
+    if (idleActive) tickIdleSequence();
     updateClock(dt, t);
+
+    // 钟表退场后，若待机前有选中的分子，再自动选回并飞过去
+    if (pendingReselectId) {
+      const stNow = getState();
+      if (stNow.selectedId && stNow.selectedId !== pendingReselectId) {
+        pendingReselectId = null;
+      } else if (clockAmount < 0.15) {
+        const id = pendingReselectId;
+        pendingReselectId = null;
+        setSelected(id);
+      }
+    }
 
     // 结构随距离变淡
     if (structPts) {
@@ -4296,6 +4371,9 @@ export function mountTreeScene(rootEl) {
       canvas.releasePointerCapture(e.pointerId);
     } catch (_) {}
     if (dragDist < 10) {
+      // 钟表/待机简介中点击只用于退出，不按键位拾取星点；
+      // 退出后由待机逻辑自动选回原来的分子。
+      if (clockAmount > 0.05 || pendingReselectId) return;
       const rect = canvas.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
@@ -4430,7 +4508,7 @@ export function mountTreeScene(rootEl) {
           selRippleStart = null;
         }
       }
-      markInteraction();
+      if (!suppressIdleReset) markInteraction();
       lastSel = selectedId;
     }
     const key = glowKey();
