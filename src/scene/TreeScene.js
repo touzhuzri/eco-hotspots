@@ -681,6 +681,7 @@ export function mountTreeScene(rootEl) {
       _look.copy(target);
       _lookInit = true;
     }
+    const k = damp(lastDt, DAMP_K);
     if (fly.active && fly.camStart && fly.lookStart) {
       // 起飞瞬间从“实际相机位置”接管，再交给已经缓动的飞行路径，
       // 避免预设切换第一帧被阻尼状态拽一下。
@@ -688,7 +689,6 @@ export function mountTreeScene(rootEl) {
       camera.position.lerpVectors(fly.camStart, _desired, enter);
       _look.lerpVectors(fly.lookStart, target, enter);
     } else {
-      const k = damp(lastDt, DAMP_K);
       _look.lerp(target, k);
       camera.position.lerp(_desired, k);
     }
