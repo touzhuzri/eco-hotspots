@@ -865,8 +865,8 @@ export function mountTreeScene(rootEl) {
   window.addEventListener(
     "pointermove",
     () => {
-      // 竹简简介需要停留阅读：移动鼠标不退出，点击/滚轮/按键才返回
-      if (idleIntroShown) return;
+      // 待机/竹简简介需要停留阅读：移动鼠标不退出，点击/滚轮/按键才返回
+      if (idleActive || idleIntroShown) return;
       markInteraction();
     },
     { passive: true }
@@ -1065,6 +1065,7 @@ export function mountTreeScene(rootEl) {
   let introDone = true;
   // 场景装饰（节气环/文字/土壤分子）跟随树一起逐渐出现
   let introReveal = 0;
+  let introRaw = 0;
   // 加载页还盖着场景时先暂停生长，等 `is-done` 后再从泥土/根开始
   let introPaused = true;
   // 参天古树：整体约 9s
@@ -1083,10 +1084,12 @@ export function mountTreeScene(rootEl) {
     // 略偏缓入：泥土/根先慢慢渗出，再托起干与冠
     const u = Math.pow(raw, 1.25);
     introReveal = u;
+    introRaw = raw;
     setRevealAll(u);
     if (raw >= 1) {
       introDone = true;
       introReveal = 1;
+      introRaw = 1;
       setRevealAll(1);
       // 树完全长成后再让界面浮现归位
       if (document.body.classList.contains("ui-intro")) {
@@ -2655,10 +2658,13 @@ export function mountTreeScene(rootEl) {
     return clockPattern;
   }
 
-  function prepareClock() {
+  function prepareClock(view = null) {
     if (!solarRing || !productStars.length) return;
-    const center = new THREE.Vector3(cam.fx, cam.fy, cam.fz);
-    const n = new THREE.Vector3().subVectors(camera.position, center).normalize();
+    const center = view?.center
+      ? view.center.clone()
+      : new THREE.Vector3(cam.fx, cam.fy, cam.fz);
+    const camPos = view?.camPos ? view.camPos.clone() : camera.position.clone();
+    const n = new THREE.Vector3().subVectors(camPos, center).normalize();
     let up = new THREE.Vector3(0, 1, 0);
     if (Math.abs(n.dot(up)) > 0.985) up.set(0, 0, -1);
     const zAxis = up
@@ -2808,7 +2814,7 @@ export function mountTreeScene(rootEl) {
 
   function startIdleSequence() {
     idleActive = true;
-    idleClockPending = true;
+    idleClockPending = false;
     idleIntroShown = false;
     idleIntroPoint = null;
 
@@ -2822,9 +2828,19 @@ export function mountTreeScene(rootEl) {
     }
 
     window.dispatchEvent(new CustomEvent("eco:idle-intro-hide"));
-    // 先回到缩放最小 / 初始总览，再开始化形钟表
+    // 6s 到点立即开始化形；相机同时快速退回最小缩放/初始总览。
     const centerY = ((TREE_Y1 + TREE_Y0) / 2) * WORLD_SCALE;
-    flyToView(0, centerY, 0, DIST_MAX, 0.16);
+    const pitch = 0.16;
+    const cp = Math.cos(pitch);
+    const sp = Math.sin(pitch);
+    const overviewCenter = new THREE.Vector3(0, centerY, 0);
+    const overviewCam = new THREE.Vector3(
+      Math.sin(cam.yaw) * DIST_MAX * cp,
+      centerY + sp * DIST_MAX,
+      Math.cos(cam.yaw) * DIST_MAX * cp
+    );
+    prepareClock({ center: overviewCenter, camPos: overviewCam });
+    flyToView(0, centerY, 0, DIST_MAX, pitch, 1.2);
   }
 
   function endIdleSequence() {
@@ -2841,13 +2857,10 @@ export function mountTreeScene(rootEl) {
   }
 
   function tickIdleSequence() {
-    if (idleClockPending && !fly.active) {
-      idleClockPending = false;
-      if (!clockPrepared) prepareClock();
-    }
     if (
       idleIntroPoint &&
       !idleIntroShown &&
+      !fly.active &&
       clockPrepared &&
       clockAmount > 0.5
     ) {
@@ -2880,9 +2893,10 @@ export function mountTreeScene(rootEl) {
   }
 
   /** 飞到指定注视点/距离/俯仰（视角预设） */
-  function flyToView(tx, ty, tz, dist, pitch) {
+  function flyToView(tx, ty, tz, dist, pitch, dur = 1.8) {
     exitFP();
     fly.active = true;
+    fly.dur = dur;
     fly.t = 0;
     fly.camStart = camera.position.clone();
     fly.lookStart = _look.clone();
@@ -2918,6 +2932,7 @@ export function mountTreeScene(rootEl) {
     ).multiplyScalar(0.55);
 
     fly.active = true;
+    fly.dur = 1.8;
     fly.t = 0;
     fly.camStart = camera.position.clone();
     fly.lookStart = _look.clone();
@@ -4114,13 +4129,15 @@ export function mountTreeScene(rootEl) {
         AMBIENT_HAZE *
         (1 - clockAmount);
     }
-    // 节气环：指针绕场一周；扫到哪里，刻线就从环内伸向文字
+    // 节气环：指针绕场一周；扫到哪里，刻线就从环内伸向文字。
+    // 用原始生长进度而不是缓动进度，让表盘在树完全长成时刚好收尾。
     const ringU = introDone ? 1 : introReveal;
+    const rawU = introDone ? 1 : introRaw;
     const clamp01 = (v) => Math.max(0, Math.min(1, v));
-    const sweep = clamp01((ringU - 0.04) / 0.68);
+    const sweep = clamp01((rawU - 0.015) / 0.965);
     const pointerA = Math.min(
-      clamp01((ringU - 0.02) / 0.05),
-      1 - clamp01((ringU - 0.72) / 0.16)
+      clamp01((rawU - 0.01) / 0.04),
+      1 - clamp01((rawU - 0.965) / 0.035)
     );
     const pointerAngle = -Math.PI / 2 + sweep * Math.PI * 2;
     if (solarPointerPivot) {
@@ -4158,11 +4175,11 @@ export function mountTreeScene(rootEl) {
     for (const lm of solarLoopMats) {
       lm.mat.opacity =
         lm.alpha *
-        clamp01((ringU - 0.72) / 0.14) *
+        clamp01((rawU - 0.93) / 0.05) *
         (1 + clockAmount * 1.4);
     }
     if (solarGlow) {
-      const gIn = clamp01((ringU - 0.76) / 0.12);
+      const gIn = clamp01((rawU - 0.95) / 0.04);
       solarGlow.material.opacity = (0.4 + 0.2 * breath) * gIn;
       const s = 20 + 6 * breath;
       solarGlow.scale.set(s, s, 1);
@@ -4232,10 +4249,13 @@ export function mountTreeScene(rootEl) {
       document.body.classList.add("idle");
     }
 
-    // UI 隐去/生长入场时，把取景平滑移回画面中心
+    // UI 隐去/生长入场时，把取景平滑移回画面中心；
+    // 分子竹简版本把钟表整体左移，给右侧介绍让出空间。
     const idleNow =
       document.body.classList.contains("idle") || introUI;
-    viewOffsetTarget = idleNow ? 0 : sideOffset;
+    const introClockShift =
+      idleActive && idleIntroPoint ? Math.min(W * 0.24, 320) : 0;
+    viewOffsetTarget = idleNow ? introClockShift : sideOffset;
     if (Math.abs(viewOffsetTarget - viewOffsetX) > 0.05) {
       viewOffsetX += (viewOffsetTarget - viewOffsetX) * Math.min(1, dt * 3);
       camera.setViewOffset(W, H, viewOffsetX, 0, W, H);

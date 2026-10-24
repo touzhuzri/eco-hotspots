@@ -2544,15 +2544,15 @@ body.idle .bottom-dock {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  padding: 4vh clamp(18px, 6vw, 96px) 4vh 18px;
+  padding: 4vh clamp(14px, 3vw, 48px) 4vh 18px;
   pointer-events: none;
 }
 .idle-intro[hidden] { display: none !important; }
 
 .idle-intro-card {
   position: relative;
-  width: min(440px, 42vw);
-  height: min(74vh, 680px);
+  width: min(580px, 46vw);
+  height: min(76vh, 720px);
   opacity: 0;
   transform: translateY(18px) scale(0.98);
   transition:
@@ -2780,5 +2780,94 @@ body.idle .bottom-dock {
   .idle-intro.is-on .idle-intro-card,
   .idle-ink {
     animation: none;
+  }
+}
+
+/* 待机分子右侧：左侧 2D 星图 + 右侧竖排简介 */
+.idle-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  gap: 14px;
+  margin-top: 14px;
+}
+.idle-structure {
+  flex: 3 1 0;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.idle-structure-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 7px;
+  color: rgba(201, 180, 106, 0.72);
+  font-size: 0.58rem;
+  letter-spacing: 0.16em;
+}
+.idle-structure-head em {
+  color: rgba(170, 200, 176, 0.48);
+  font-style: normal;
+  letter-spacing: 0.1em;
+}
+.idle-structure-canvas {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid rgba(160, 196, 168, 0.1);
+  border-radius: 9px;
+  background:
+    radial-gradient(ellipse at 50% 46%, rgba(88, 150, 104, 0.08), transparent 65%),
+    rgba(3, 10, 7, 0.24);
+}
+.idle-structure-canvas > span {
+  padding: 14px;
+  color: rgba(170, 196, 176, 0.5);
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.58rem;
+  line-height: 1.6;
+  word-break: break-all;
+  text-align: center;
+}
+.idle-star-canvas {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  filter: drop-shadow(0 0 9px rgba(130, 210, 150, 0.22));
+  animation: idle-stars 7.5s ease-in-out infinite;
+}
+@keyframes idle-stars {
+  0%, 100% { opacity: 0.82; filter: drop-shadow(0 0 7px rgba(130, 210, 150, 0.16)); }
+  50% { opacity: 1; filter: drop-shadow(0 0 13px rgba(130, 210, 150, 0.3)); }
+}
+
+/* 竖排简介：右栏 2/5 */
+.idle-vertical {
+  flex: 2 1 0;
+  min-width: 0;
+  margin: 0;
+  padding: 2px 2px;
+  height: 100%;
+  font-size: clamp(0.68rem, 0.9vw, 0.78rem);
+  line-height: 1.9;
+  letter-spacing: 0.1em;
+}
+
+@media (max-width: 900px), (max-height: 520px) {
+  .idle-vertical {
+    font-size: 0.64rem;
+    line-height: 1.75;
+    letter-spacing: 0.06em;
+  }
+  .idle-intro-card {
+    height: min(78vh, 620px);
   }
 }
