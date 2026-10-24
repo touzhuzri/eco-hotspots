@@ -2552,13 +2552,12 @@ body.idle .bottom-dock {
 .idle-intro-card {
   position: relative;
   width: min(580px, 46vw);
-  height: min(76vh, 720px);
+  height: min(80vh, 740px);
   opacity: 0;
   transform: translateY(18px) scale(0.98);
   transition:
     opacity 1.35s ease,
     transform 1.6s cubic-bezier(0.2, 0.75, 0.2, 1);
-  filter: drop-shadow(0 18px 60px rgba(0, 0, 0, 0.45));
   will-change: transform, opacity;
 }
 .idle-intro.is-on .idle-intro-card {
@@ -2591,7 +2590,6 @@ body.idle .bottom-dock {
   display: flex;
   gap: 2px;
   opacity: 0.64;
-  filter: blur(0.2px);
   mask-image: linear-gradient(
     180deg,
     transparent 0%,
@@ -2635,7 +2633,6 @@ body.idle .bottom-dock {
     radial-gradient(ellipse at 22% 36%, rgba(120, 180, 132, 0.2), transparent 52%),
     radial-gradient(ellipse at 78% 62%, rgba(200, 188, 128, 0.14), transparent 48%),
     radial-gradient(ellipse at 46% 88%, rgba(12, 30, 20, 0.5), transparent 60%);
-  filter: blur(12px);
   mix-blend-mode: screen;
   animation: idle-ink 11s ease-in-out infinite;
   pointer-events: none;
@@ -2841,12 +2838,11 @@ body.idle .bottom-dock {
   height: 100%;
   object-fit: contain;
   display: block;
-  filter: drop-shadow(0 0 9px rgba(130, 210, 150, 0.22));
   animation: idle-stars 7.5s ease-in-out infinite;
 }
 @keyframes idle-stars {
-  0%, 100% { opacity: 0.82; filter: drop-shadow(0 0 7px rgba(130, 210, 150, 0.16)); }
-  50% { opacity: 1; filter: drop-shadow(0 0 13px rgba(130, 210, 150, 0.3)); }
+  0%, 100% { opacity: 0.84; }
+  50% { opacity: 1; }
 }
 
 /* 竖排简介：右栏 2/5 */
@@ -2870,4 +2866,83 @@ body.idle .bottom-dock {
   .idle-intro-card {
     height: min(78vh, 620px);
   }
+}
+
+/* 上中下三段：名字 / 2D 星图结构 / 竖排简介 */
+.idle-intro-card {
+  z-index: 3;
+}
+.idle-callouts {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 2;
+}
+.idle-callouts path {
+  fill: none;
+  stroke: rgba(224, 205, 152, 0.46);
+  stroke-width: 1.1;
+  vector-effect: non-scaling-stroke;
+}
+.idle-callouts circle {
+  fill: rgba(232, 213, 164, 0.68);
+}
+.idle-body {
+  flex-direction: column;
+  gap: 10px;
+}
+.idle-structure {
+  flex: 3.2 1 0;
+  width: 100%;
+}
+.idle-vertical {
+  flex: 1.8 1 0;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 10px 2px 0;
+  border-top: 1px solid rgba(190, 214, 178, 0.12);
+  font-size: clamp(0.64rem, 0.82vw, 0.76rem);
+  line-height: 1.8;
+  letter-spacing: 0.08em;
+}
+@media (max-width: 900px), (max-height: 520px) {
+  .idle-callouts { display: none; }
+}
+
+.idle-vertical-wrap {
+  flex: 1.8 1 0;
+  width: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding-top: 7px;
+  border-top: 1px solid rgba(190, 214, 178, 0.12);
+}
+.idle-section-label {
+  flex: 0 0 auto;
+  margin-bottom: 3px;
+  color: rgba(201, 180, 106, 0.66);
+  font-size: 0.56rem;
+  letter-spacing: 0.2em;
+  writing-mode: horizontal-tb;
+}
+.idle-vertical {
+  flex: 1 1 0;
+  height: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0 2px;
+  border-top: none;
+}
+
+.idle-vertical {
+  width: max-content;
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
 }

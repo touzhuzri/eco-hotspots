@@ -45,10 +45,61 @@ export function mountIdleIntro(el) {
     token++;
     el.classList.remove("is-on");
     el.setAttribute("aria-hidden", "true");
+    const svg = el.querySelector(".idle-callouts");
+    if (svg) svg.innerHTML = "";
     window.setTimeout(() => {
       if (!el.classList.contains("is-on")) el.hidden = true;
     }, 700);
   }
+
+  /** 从钟表边缘引出几条折线，指向名字 / 结构式 / 竖排简介 */
+  function drawCallouts() {
+    const svg = el.querySelector(".idle-callouts");
+    const card = el.querySelector(".idle-intro-card");
+    if (!svg || !card || el.hidden || window.innerWidth <= 900) {
+      if (svg) svg.innerHTML = "";
+      return;
+    }
+    const cr = card.getBoundingClientRect();
+    if (cr.width < 20) return;
+    const nameEl = el.querySelector(".idle-name");
+    const structureEl = el.querySelector(".idle-structure-canvas");
+    const introEl = el.querySelector(".idle-vertical");
+    if (!nameEl || !structureEl || !introEl) return;
+
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    svg.setAttribute("width", W);
+    svg.setAttribute("height", H);
+
+    const nr = nameEl.getBoundingClientRect();
+    const sr = structureEl.getBoundingClientRect();
+    const ir = introEl.getBoundingClientRect();
+    const startX = cr.left - Math.min(120, Math.max(56, cr.left * 0.1));
+    const elbowX = cr.left - 26;
+    const endX = cr.left - 3;
+    const starts = [0.34, 0.52, 0.7].map((f) => cr.top + cr.height * f);
+    const targets = [
+      nr.top + nr.height * 0.55,
+      sr.top + sr.height * 0.5,
+      ir.top + ir.height * 0.55,
+    ];
+
+    let markup = "";
+    for (let i = 0; i < 3; i++) {
+      const sy = Math.max(cr.top + 24, Math.min(cr.bottom - 24, starts[i]));
+      const ey = Math.max(cr.top + 16, Math.min(cr.bottom - 16, targets[i]));
+      markup += `<path d="M ${startX} ${sy} H ${elbowX} V ${ey} H ${endX}" />`;
+      markup += `<circle cx="${startX}" cy="${sy}" r="1.5" />`;
+      markup += `<circle cx="${endX}" cy="${ey}" r="2.1" />`;
+    }
+    svg.innerHTML = markup;
+  }
+
+  window.addEventListener("resize", () => {
+    if (el.classList.contains("is-on")) drawCallouts();
+  });
 
   function render(p, meta) {
     const ci = classInfoFor(meta);
@@ -63,6 +114,7 @@ export function mountIdleIntro(el) {
     const seq = ++renderSeq;
 
     el.innerHTML = `
+      <svg class="idle-callouts" aria-hidden="true"></svg>
       <div class="idle-intro-card">
         <div class="idle-slips" aria-hidden="true">${Array.from(
           { length: 9 },
@@ -82,19 +134,23 @@ export function mountIdleIntro(el) {
                 <span>${smiles ? "星点结构生成中…" : "SMILES 暂缺"}</span>
               </div>
             </div>
-            <div class="idle-vertical" data-text="${esc(intro)}" lang="zh-CN">${esc(
-              intro
-            )}</div>
+            <div class="idle-vertical-wrap">
+              <span class="idle-section-label">简介</span>
+              <div class="idle-vertical" data-text="${esc(intro)}" lang="zh-CN">${esc(
+                intro
+              )}</div>
+            </div>
           </div>
           <p class="idle-hint">轻触返回 · 将自动回到这颗分子</p>
         </div>
       </div>`;
 
+    requestAnimationFrame(drawCallouts);
     if (!smiles) return;
     renderSmilesToStarCanvas(smiles, {
-      width: 360,
-      height: 460,
-      maxPoints: 5200,
+      width: 720,
+      height: 400,
+      maxPoints: 6200,
     })
       .then((canvas) => {
         if (seq !== renderSeq || !el.isConnected) return;
@@ -103,6 +159,7 @@ export function mountIdleIntro(el) {
         slot.innerHTML = "";
         slot.appendChild(canvas);
         canvas.className = "idle-star-canvas";
+        requestAnimationFrame(drawCallouts);
       })
       .catch(() => {
         if (seq !== renderSeq) return;
