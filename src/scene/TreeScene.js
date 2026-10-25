@@ -2902,6 +2902,8 @@ export function mountTreeScene(rootEl) {
     vel.pitch = 0;
     clockWanted = 1;
     clockPrepared = true;
+    // 筛选状态只影响世界树浏览；钟表始终由全部点组成
+    setKingdomGlow(true);
     if (clockHandsGroup) clockHandsGroup.visible = true;
     if (clockHub) clockHub.visible = true;
   }
@@ -2988,6 +2990,8 @@ export function mountTreeScene(rootEl) {
         if (u.uClock) u.uClock.value = 0;
         if (u.uDim) u.uDim.value = 1;
       }
+      // 钟表退场后恢复浏览筛选的明暗/可见性
+      setKingdomGlow();
     }
   }
 
@@ -3007,9 +3011,9 @@ export function mountTreeScene(rootEl) {
     }
 
     window.dispatchEvent(new CustomEvent("eco:idle-intro-hide"));
-    // 6s 到点立即开始化形；相机同时快速退回最小缩放/初始总览。
+    // 6s 到点立即开始化形；相机回到水平正视，让表盘与树干同轴垂直
     const centerY = ((TREE_Y1 + TREE_Y0) / 2) * WORLD_SCALE;
-    const pitch = 0.16;
+    const pitch = 0;
     const cp = Math.cos(pitch);
     const sp = Math.sin(pitch);
     const overviewCenter = new THREE.Vector3(0, centerY, 0);
@@ -3028,6 +3032,8 @@ export function mountTreeScene(rootEl) {
     idleClockPending = false;
     idleIntroShown = false;
     if (clockWanted) clockWanted = 0;
+    // 即刻恢复浏览筛选；钟表剩余退场动画不再强制全部点
+    setKingdomGlow();
     window.dispatchEvent(new CustomEvent("eco:idle-intro-hide"));
     if (idleIntroPoint) {
       pendingReselectId = idleIntroPoint.id;
@@ -3448,10 +3454,15 @@ export function mountTreeScene(rootEl) {
   let splitTrunkIdx = [];
   let splitOtherIdx = [];
 
-  function setKingdomGlow() {
+  function setKingdomGlow(forceAll = false) {
     if (!trunkPts || !otherPts) return;
     const filters = getState();
     const { selectedId } = filters;
+    // 待机钟表必须由全部树点组成，不能被浏览筛选或“隐藏树干”打散
+    forceAll =
+      forceAll ||
+      clockWanted > 0 ||
+      (idleActive && clockAmount > 0.02);
 
     function apply(handle, idxList) {
       const sizes = handle.geometry.attributes.aSize;
@@ -3460,8 +3471,8 @@ export function mountTreeScene(rootEl) {
       for (let k = 0; k < idxList.length; k++) {
         const s = productStars[idxList[k]];
         if (!s) continue;
-        const vis = matchFilters(s, filters);
-        const sel = selectedId === s.id;
+        const vis = forceAll ? true : matchFilters(s, filters);
+        const sel = forceAll ? false : selectedId === s.id;
         const base =
           s.kind === "featured" ? 1.2 : s.kind === "lotus" ? 0.55 : 0.48;
         sizes.setX(k, sel ? base * 1.45 : base);
@@ -3499,7 +3510,7 @@ export function mountTreeScene(rootEl) {
           (vis ? 1 : 0.08) *
           (sel ? 1.2 : 1);
         if (s.layer === "trunk") {
-          if (!set.showTrunk) {
+          if (!forceAll && !set.showTrunk) {
             sizes.setX(k, 0);
             glows.setX(k, 0);
             cols.setXYZ(k, 0, 0, 0);
@@ -4999,6 +5010,31 @@ export function mountTreeScene(rootEl) {
         hour: ud.hour?.rotation.y ?? null,
         minute: ud.minute?.rotation.y ?? null,
         second: ud.second?.rotation.y ?? null,
+      };
+    },
+    get clockPlane() {
+      const n = new THREE.Vector3(0, 1, 0).applyQuaternion(clockFinalQuat);
+      return {
+        normal: n.toArray(),
+        leanDeg: Math.asin(Math.max(-1, Math.min(1, n.y))) * (180 / Math.PI),
+        pitch: cam.pitch,
+        pos: clockFinalPos.toArray(),
+      };
+    },
+    get pointGlowCount() {
+      const count = (layer) => {
+        if (!layer) return 0;
+        const a = layer.geometry.attributes.aGlow.array;
+        let n = 0;
+        for (let i = 0; i < a.length; i++) if (a[i] > 0.1) n++;
+        return n;
+      };
+      return {
+        trunk: count(trunkPts),
+        other: count(otherPts),
+        total: productStars.length,
+        clock: clockAmount,
+        prepared: clockPrepared,
       };
     },
     get viewOffset() {
