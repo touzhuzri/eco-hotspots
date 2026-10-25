@@ -25,6 +25,7 @@
 - **闲置钟表**：长时间无交互时，全部树点沿弧线成群飞散，重组成表盘；二十四节气环立起成为 24 格刻度，生成时/分/秒针。表盘底纹由星点按华中农业大学校徽的明暗遮罩采样组成。
 - **分子详情**：名称、分子式、质量、XLogP、环数、HBD/HBA、TPSA、分类、来源物种、生态说明与 LOTUS 来源。
 - **结构式**：按需加载 RDKit.js，在浏览器内计算并渲染暗色结构式。
+- **待机 3D 分子**：从 LOTUS SMILES 离线生成 3D 构象，在待机介绍卡里显示球棍模型；拖动旋转、滚轮缩放不会退出世界树，点击 3D 视口外才返回。未生成 3D 的分子自动回退 2D 结构式。
 - **领养**：每颗分子只能被领养一次；可留名或匿名显示“神秘用户”；同一访客可领养多颗、可改名。领养信息只在该分子卡片中可见。
 - **探索工具**：搜索、随机漫游、今日分子、类群/层位/化学分类/来源科筛选、附近分子、精选分子、收藏、对比、分享链接、下载资料。
 - **响应式**：桌面双栏 + 顶部导航；移动端抽屉式探索栏。
@@ -62,6 +63,12 @@
 ```bash
 python -m http.server 5173
 # http://127.0.0.1:5173/
+```
+
+Three.js 与 addons 已放在 `vendor/three/`，页面不再依赖 unpkg 等外网 CDN；更新 Three 后执行：
+
+```bash
+npm run vendor:three
 ```
 
 如果同时需要领养，再开一个终端：
@@ -128,6 +135,8 @@ mise use -g node@22.14.0
 - 结构、生物来源、分类、分子式、SMILES、描述符等均来自 **LOTUS Initiative frozen export 260413（CC0）**。
 - 快照约 **227,319** 条结构记录、**1,602** 个物种节点、**2,038** 个精选分子。
 - 元数据按 InChIKey 前两位分片压缩存放在 `data/molecules/`，按需加载。
+- 3D 构象按同样规则分片存放在 `data/molecules3d/`，由 LOTUS SMILES 经 RDKit ETKDG 离线生成；按需加载，缺失时回退 2D。
+- 全量 3D 分片约 60–80MB；生成耗时较长，建议单独同步到服务器，是否纳入 Git 视仓库体积自行决定。
 - 分类/来源科 facets 与合法 InChIKey 集合见 `data/molecules/facets.json.gz`。
 - 土壤长链烷烃池见 `data/curated/soil-alkanes.json`。
 - 数据字段说明：`data/molecules/README.md`。
@@ -138,6 +147,8 @@ mise use -g node@22.14.0
 python pipeline/build-molecule-meta.py
 python pipeline/build-molecule-facets.py
 python pipeline/build-soil-alkanes.py
+# 3D 构象（可先用 --prefixes AA,AB 小范围试跑）
+python pipeline/build-molecule-3d.py --workers 12
 ```
 
 依赖 Python 3.10+、RDKit。原始 LOTUS 文件不随仓库分发，脚本默认读取：
@@ -173,11 +184,12 @@ index.html                  页面骨架 / 加载页
 css/styles.css              全部界面样式
 src/main.js                 启动流程、数据装配、UI 挂载
 src/scene/TreeScene.js      星点树、相机、节气环、花瓣、烷烃、闲置钟表
-src/engine/                 LOTUS 元数据、facets、点位、领养客户端
-src/ui/                     详情卡、探索栏、底栏、搜索、引导、对比、SMILES
+src/engine/                 LOTUS 元数据、facets、3D 构象、点位、领养客户端
+src/ui/                     详情卡、探索栏、底栏、搜索、引导、对比、SMILES、3D 分子
 src/data/                   节气、分类中文信息
 data/curated/               精选节点、结构云、土壤烷烃池
 data/molecules/             LOTUS 元数据分片 + facets
+data/molecules3d/           LOTUS 3D 构象分片（RDKit ETKDG）
 vendor/rdkit/               RDKit.js 与 WASM（BSD）
 deploy/                     静态站、领养服务、部署说明
 pipeline/                   数据构建脚本

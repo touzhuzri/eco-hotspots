@@ -321,6 +321,62 @@ function makeGlowTexture() {
   return tex;
 }
 
+/** 指针上的缠绕叶片：单片叶形 alpha 贴图，供表针上的藤蔓复用 */
+function makeLeafTexture() {
+  const w = 96;
+  const h = 160;
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext("2d");
+  ctx.translate(w / 2, h / 2);
+
+  // 叶形
+  ctx.beginPath();
+  ctx.moveTo(0, h * 0.44);
+  ctx.bezierCurveTo(w * 0.44, h * 0.24, w * 0.4, -h * 0.24, 0, -h * 0.44);
+  ctx.bezierCurveTo(-w * 0.4, -h * 0.24, -w * 0.44, h * 0.24, 0, h * 0.44);
+  ctx.closePath();
+  // 极淡的叶面 + 金线叶缘，像星图里的细枝叶，而不是实心色块
+  ctx.fillStyle = "rgba(224,255,232,0.16)";
+  ctx.fill();
+  ctx.shadowColor = "rgba(186,255,204,0.95)";
+  ctx.shadowBlur = 18;
+  ctx.strokeStyle = "rgba(255,255,240,0.98)";
+  ctx.lineWidth = 8;
+  ctx.stroke();
+
+  // 叶脉与叶基的小光点
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = "rgba(235,255,236,0.8)";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(0, h * 0.36);
+  ctx.lineTo(0, -h * 0.34);
+  ctx.stroke();
+  ctx.lineWidth = 1.6;
+  for (let i = -2; i <= 2; i++) {
+    if (!i) continue;
+    const y = i * h * 0.1;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.quadraticCurveTo(w * 0.16, y - h * 0.05, w * 0.25, y - h * 0.1);
+    ctx.moveTo(0, y);
+    ctx.quadraticCurveTo(-w * 0.16, y - h * 0.05, -w * 0.25, y - h * 0.1);
+    ctx.stroke();
+  }
+  ctx.fillStyle = "rgba(255,252,226,0.98)";
+  ctx.beginPath();
+  ctx.arc(0, h * 0.4, 4, 0, Math.PI * 2);
+  ctx.fill();
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  return tex;
+}
+
 /** 选中光环：中空环，避免把星点本身糊成一团 */
 function makeRingTexture() {
   const c = document.createElement("canvas");
@@ -858,7 +914,9 @@ export function mountTreeScene(rootEl) {
   });
 
   // ── 闲置留白：10 秒无操作后由 tick 添加 body.idle ──
-  function markInteraction() {
+  function markInteraction(e) {
+    // 待机介绍里的 3D 视口是交互孤岛：只有点它外面才退回世界树
+    if (e?.target?.closest?.("[data-idle-interactive]")) return;
     lastInteraction = performance.now();
     document.body.classList.remove("idle");
   }
@@ -1929,6 +1987,58 @@ export function mountTreeScene(rootEl) {
     clockHandsGroup = new THREE.Group();
     clockHandsGroup.visible = false;
     clockHandMats = [];
+
+    // 指针上的藤蔓与叶片：随指针一起转动，做“缠绕”感
+    const handLeafGeo = new THREE.PlaneGeometry(1, 1);
+    handLeafGeo.rotateX(-Math.PI / 2);
+    const handLeafTex = makeLeafTexture();
+    const handLeafMats = [
+      new THREE.MeshBasicMaterial({
+        map: handLeafTex,
+        color: 0xd8ffe4,
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        fog: false,
+      }),
+      new THREE.MeshBasicMaterial({
+        map: handLeafTex,
+        color: 0xffe8b0,
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        fog: false,
+      }),
+    ];
+    const handVineMat = new THREE.LineBasicMaterial({
+      color: 0xffd27a,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      fog: false,
+    });
+    const handBudMat = new THREE.SpriteMaterial({
+      map: glowTex,
+      color: 0xffe0a0,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      depthTest: false,
+      fog: false,
+    });
+    clockHandMats.push(
+      { mat: handLeafMats[0], base: 0.95 },
+      { mat: handLeafMats[1], base: 0.82 },
+      { mat: handVineMat, base: 0.92 },
+      { mat: handBudMat, base: 0.62 }
+    );
+
     function makeClockHand(width, length, color, baseOpacity) {
       const hg = new THREE.PlaneGeometry(width, 1);
       hg.translate(0, 0.5, 0);
@@ -1946,6 +2056,68 @@ export function mountTreeScene(rootEl) {
       const mesh = new THREE.Mesh(hg, hm);
       mesh.scale.z = length;
       pivot.add(mesh);
+
+      // 藤蔓：细金线绕指针长轴，贴得近一些
+      const wraps = 2.6;
+      const amp = Math.max(0.5, width * 1.15 + ringR * 0.007);
+      const phase = Math.random() * Math.PI * 2;
+      const segs = 48;
+      const vinePts = [];
+      for (let i = 0; i <= segs; i++) {
+        const s = i / segs;
+        const a = phase + s * Math.PI * 2 * wraps;
+        vinePts.push(
+          new THREE.Vector3(
+            Math.sin(a) * amp,
+            Math.cos(a) * amp * 0.5,
+            -(length * 0.04 + s * length * 0.93)
+          )
+        );
+      }
+      const vine = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(vinePts),
+        handVineMat
+      );
+      vine.renderOrder = 3;
+      pivot.add(vine);
+
+      const leafN = Math.max(3, Math.round(length / (ringR * 0.14)));
+      for (let i = 0; i < leafN; i++) {
+        const s = 0.08 + ((i + 0.5) / leafN) * 0.84;
+        const a = phase + s * Math.PI * 2 * wraps;
+        const leaf = new THREE.Mesh(
+          handLeafGeo,
+          handLeafMats[i % 2]
+        );
+        const lw = ringR * (0.025 + Math.random() * 0.008);
+        const lh = lw * (1.9 + Math.random() * 0.5);
+        leaf.scale.set(lw, 1, lh);
+        leaf.position.set(
+          Math.sin(a) * amp * 1.08,
+          Math.cos(a) * amp * 0.55 + 0.06,
+          -(length * 0.04 + s * length * 0.93)
+        );
+        leaf.rotation.y =
+          Math.sin(a) * 0.75 +
+          (i % 2 ? 0.42 : -0.42) +
+          (Math.random() - 0.5) * 0.35;
+        leaf.renderOrder = 3;
+        pivot.add(leaf);
+      }
+
+      // 针尖的一粒金色芽点，收住藤蔓
+      const endA = phase + 0.98 * Math.PI * 2 * wraps;
+      const bud = new THREE.Sprite(handBudMat);
+      bud.position.set(
+        Math.sin(endA) * amp,
+        Math.cos(endA) * amp * 0.5 + 0.05,
+        -length * 0.98
+      );
+      const budSize = ringR * 0.045;
+      bud.scale.set(budSize, budSize, 1);
+      bud.renderOrder = 3;
+      pivot.add(bud);
+
       clockHandsGroup.add(pivot);
       clockHandMats.push({ mat: hm, base: baseOpacity });
       return pivot;
@@ -2770,7 +2942,14 @@ export function mountTreeScene(rootEl) {
     // 指针 / 手势
     if (clockHandsGroup) {
       const now = new Date();
-      const sec = now.getSeconds() + now.getMilliseconds() / 1000;
+      // 一秒一跳：每秒钟头 0.16s 快速追上，其余时间保持不动
+      const ms = now.getMilliseconds() / 1000;
+      const snapDur = 0.16;
+      const snap =
+        ms < snapDur
+          ? 1 - Math.pow(1 - ms / snapDur, 3)
+          : 1;
+      const sec = now.getSeconds() - 1 + snap;
       const min = now.getMinutes() + sec / 60;
       const hour = (now.getHours() % 24) + min / 60;
       clockHandsGroup.userData.hour.rotation.y = -(hour / 24) * Math.PI * 2;
@@ -4811,6 +4990,15 @@ export function mountTreeScene(rootEl) {
         wanted: clockWanted,
         amount: clockAmount,
         prepared: clockPrepared,
+      };
+    },
+    get clockHands() {
+      const ud = clockHandsGroup?.userData;
+      if (!ud) return null;
+      return {
+        hour: ud.hour?.rotation.y ?? null,
+        minute: ud.minute?.rotation.y ?? null,
+        second: ud.second?.rotation.y ?? null,
       };
     },
     get viewOffset() {
