@@ -12,6 +12,8 @@
 
 ![闲置星点钟表](docs/preview-clock.png)
 
+![待机 3D 分子](docs/preview-3d.png)
+
 > 仅作科学传播与教学演示，**不构成任何用药建议**。
 
 ---
