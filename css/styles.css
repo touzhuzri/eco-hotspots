@@ -3016,3 +3016,203 @@ body.idle .bottom-dock {
   background: linear-gradient(90deg, rgba(3, 9, 6, 0.58), rgba(3, 9, 6, 0.05));
   padding-right: 10px;
 }
+
+/* ── 待机介绍：名称 / 结构式 / 简介 = 1:2:3 ── */
+.idle-intro-card {
+  width: min(620px, 47vw);
+  height: min(82vh, 760px);
+  z-index: 3;
+}
+.idle-intro-content {
+  padding: 22px 30px 20px;
+  background:
+    radial-gradient(ellipse at 68% 30%, rgba(4, 12, 8, 0.18), transparent 66%),
+    linear-gradient(
+      180deg,
+      rgba(3, 9, 6, 0.8) 0%,
+      rgba(3, 9, 6, 0.26) 20%,
+      rgba(3, 9, 6, 0.12) 46%,
+      rgba(3, 9, 6, 0.3) 76%,
+      rgba(3, 9, 6, 0.74) 100%
+    );
+}
+.idle-head {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  overflow: hidden;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(200, 190, 140, 0.14);
+}
+.idle-head .idle-kicker {
+  margin: 0;
+}
+.idle-head .idle-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: clamp(1.55rem, 2.3vw, 2.1rem);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.idle-structure-block {
+  flex: 2 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 9px 0 10px;
+  border-bottom: 1px solid rgba(200, 190, 140, 0.14);
+}
+.idle-structure-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  margin-bottom: 4px;
+}
+.idle-structure-head em {
+  flex: 0 0 auto;
+  color: rgba(170, 200, 176, 0.48);
+  font-size: 0.56rem;
+  font-style: normal;
+  letter-spacing: 0.14em;
+}
+.idle-structure-frame {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.idle-structure-frame > span {
+  max-width: 100%;
+  padding: 4px 8px;
+  color: rgba(175, 200, 180, 0.5);
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.58rem;
+  line-height: 1.5;
+  word-break: break-all;
+  text-align: center;
+}
+.idle-structure-frame .idle-structure-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+  shape-rendering: geometricPrecision;
+  filter: brightness(1.1) drop-shadow(0 0 5px rgba(190, 235, 200, 0.16));
+}
+.idle-structure-frame .molecule-3d {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  border-radius: 7px;
+  pointer-events: auto;
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+  background:
+    radial-gradient(
+      ellipse at 50% 46%,
+      rgba(86, 156, 104, 0.1),
+      transparent 64%
+    ),
+    rgba(3, 10, 7, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(190, 214, 178, 0.08);
+}
+.idle-structure-frame .molecule-3d:active {
+  cursor: grabbing;
+}
+.molecule-3d-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.molecule-3d-hint {
+  position: absolute;
+  right: 8px;
+  bottom: 5px;
+  z-index: 2;
+  color: rgba(201, 180, 106, 0.55);
+  font-size: 0.52rem;
+  letter-spacing: 0.12em;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+}
+.idle-vertical-wrap {
+  flex: 3 1 0;
+  width: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 12px 0 0;
+  border-top: none;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+}
+.idle-vertical-wrap > .idle-section-label {
+  flex: 0 0 auto;
+  margin-bottom: 5px;
+}
+.idle-intro-content .idle-vertical {
+  flex: 1 1 0;
+  width: max-content;
+  max-width: 100%;
+  height: auto;
+  min-height: 0;
+  margin: 0 auto;
+  padding: 0 2px;
+  border: 0;
+  font-size: clamp(1rem, 1.45vw, 1.3rem);
+  line-height: 1.55;
+  letter-spacing: 0.16em;
+  color: rgba(230, 244, 228, 0.9);
+  text-shadow:
+    0 0 1px rgba(232, 245, 224, 0.6),
+    0 0 18px rgba(120, 190, 138, 0.15),
+    0 2px 9px rgba(0, 0, 0, 0.68);
+}
+.idle-intro-content .idle-vertical::after {
+  filter: blur(4px);
+  color: rgba(150, 200, 160, 0.18);
+}
+@media (max-width: 900px), (max-height: 520px) {
+  .idle-intro-card {
+    width: min(88vw, 440px);
+    height: min(78vh, 640px);
+  }
+  .idle-intro-content {
+    padding: 18px 20px 16px;
+    background:
+      linear-gradient(
+        180deg,
+        rgba(3, 9, 6, 0.92) 0%,
+        rgba(3, 9, 6, 0.7) 30%,
+        rgba(3, 9, 6, 0.76) 76%,
+        rgba(3, 9, 6, 0.94) 100%
+      );
+  }
+  .idle-head .idle-name {
+    font-size: clamp(1.25rem, 5vw, 1.6rem);
+  }
+  .idle-structure-block {
+    padding: 6px 0 7px;
+  }
+  .idle-structure-head em {
+    display: none;
+  }
+  .idle-intro-content .idle-vertical {
+    font-size: clamp(0.8rem, 3.4vw, 1rem);
+    line-height: 1.65;
+    letter-spacing: 0.1em;
+  }
+}

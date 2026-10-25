@@ -13,3 +13,9 @@ Thumbs.db
 claims.jsonl
 
 .run/
+
+__pycache__/
+
+# 本地打包产物 / 参考图，不进仓库
+release/
+示例.jpg
