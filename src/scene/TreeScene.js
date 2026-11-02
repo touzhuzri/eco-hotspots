@@ -5113,6 +5113,23 @@ export function mountTreeScene(rootEl) {
       introT0 = -1;
       leafNext = 5.5;
     },
+    /** 隔空手势用：屏幕坐标拾取星点/连线，复用鼠标拾取规则 */
+    pickAt(mx, my) {
+      return pickForPointer(mx, my, true);
+    },
+    /** 隔空手势用：把模拟操作视为真实交互，重置 idle 计时避免误入待机 */
+    markActive() {
+      lastInteraction = performance.now();
+      document.body.classList.remove("idle");
+    },
+    /** 隔空手势用：连续缩放（factor<1 靠近/放大，>1 拉远/缩小），复用滚轮缩放的 clamp */
+    zoomBy(factor) {
+      cancelFlyRestoreAuto();
+      cam.distTarget = Math.max(
+        DIST_MIN,
+        Math.min(DIST_MAX, cam.distTarget * factor)
+      );
+    },
     focusView(preset) {
       const scale = WORLD_SCALE * TREE_VOLUME;
       const g = built?.crown || crownGeom(P);
