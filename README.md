@@ -30,7 +30,7 @@
 - **待机 3D 分子**：从 LOTUS SMILES 离线生成 3D 构象，在待机介绍卡里显示球棍模型；拖动旋转、滚轮缩放不会退出世界树，点击 3D 视口外才返回。未生成 3D 的分子自动回退 2D 结构式。
 - **领养**：每颗分子只能被领养一次；可留名或匿名显示“神秘用户”；同一访客可领养多颗、可改名。领养信息只在该分子卡片中可见。
 - **探索工具**：搜索、随机漫游、今日分子、类群/层位/化学分类/来源科筛选、附近分子、精选分子、收藏、对比、分享链接、下载资料。
-- **响应式**：桌面双栏 + 顶部导航；移动端抽屉式探索栏。
+- **响应式**：桌面双栏 + 顶部导航；移动端抽屉式探索栏。大屏按 1440×900 设计稿等比放大界面浮层，WebGL 场景保持全屏。
 
 ## 操作
 
@@ -60,6 +60,15 @@
 
 `start.sh` 会同时启动静态站和内部领养服务，并自动复用已运行的服务。
 
+### AI 分析（可选，Step 1）
+
+1. 在 `ai/.env` 填写 GLM / DeepSeek / MiMo 的 API Key（也可以启动后在右上角 ⚙ → AI / API 里填）
+2. 启动 AI 代理：`./start-ai.sh`（Windows 用 `start-ai.cmd`）
+3. 站点仍用 `./start.sh daemon` 启动；站点会把 `/api/ai` 代理到本机 `8790`
+4. 打开页面底部 AI 分析坞，或右上角 ⚙ 配置服务商 / Base URL / 模型 / Key
+
+AI 代理没有 npm 依赖；相似分子索引已生成在 `data/similarity/`，可用 `pipeline/build-molecule-similarity.py` 重建。详见 [`ai/README.md`](ai/README.md)。
+
 ### 方式 B：只预览前端
 
 ```bash
@@ -81,6 +90,10 @@ node deploy/claim-server.mjs
 ```
 
 ## 服务器 / 面板部署
+
+完整的部署、备份、回滚、零环境应急与排障手册见 [`docs/DEPLOYMENT_HANDOVER.md`](docs/DEPLOYMENT_HANDOVER.md)。
+
+如果拿到的是校园离线一体包，先看包内 `README-FIRST.md`，解压后执行 `./install-offline.sh`。
 
 推荐直接使用根目录脚本。默认**前台运行**，适合 Docker / 面板托管，进程不会退出。
 

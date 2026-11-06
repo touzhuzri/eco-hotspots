@@ -1,0 +1,3 @@
+# SMILES → 2D / 3D 所需依赖
+rdkit>=2023.9
+matplotlib>=3.7

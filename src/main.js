@@ -10,6 +10,8 @@ import { mountExploreRail } from "./ui/ExploreRail.js";
 import { mountBottomDock } from "./ui/BottomDock.js";
 import { mountIdleIntro } from "./ui/IdleIntro.js";
 import { mountHandGestures } from "./ui/HandGestures.js";
+import { mountAiDock } from "./ui/AiDock.js";
+import { mountAiSettings } from "./ui/AiSettings.js";
 import {
   openTour,
   openAbout,
@@ -215,6 +217,7 @@ async function boot() {
   // 让一帧绘制进度条，再同步建场景（22 万点）
   await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 30)));
   const scene = mountTreeScene(sceneEl);
+  mountAiSettings(document.getElementById("ecoSetPanel"));
   setBoot("正在点亮产物星…", 0.9);
   const filters = mountFilters(filtersEl);
   const detail = mountDetailPanel(detailEl);
@@ -242,6 +245,7 @@ async function boot() {
     });
   }
   mountIdleIntro(document.getElementById("idleIntro"));
+  mountAiDock(document.getElementById("aiDock"), { scene });
 
   const s = stats();
   const dsMeta = meta().meta || {};

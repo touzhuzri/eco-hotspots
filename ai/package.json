@@ -1,0 +1,10 @@
+{
+  "name": "shijieshu-ai",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "世界树 AI 分析代理（Step 1：对话、工具调用、SSE、相似分子）",
+  "scripts": {
+    "start": "node server.mjs"
+  }
+}

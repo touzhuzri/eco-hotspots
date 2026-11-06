@@ -5,11 +5,13 @@ shiyun-main/
 19360665.zip
 data/raw/
 *.log
+logs/
 .DS_Store
 Thumbs.db
 .vercel
 .env
 .env.*
+!ai/.env.example
 claims.jsonl
 
 .run/
@@ -18,4 +20,15 @@ __pycache__/
 
 # 本地打包产物 / 参考图，不进仓库
 release/
-示例.jpg
+示例*.jpg
+示例*.png
+
+# IDE
+.idea/
+
+# 离线部署包里的 Node 运行时，不进仓库
+runtime/
+.runtime/
+
+# RDKit 预计算的相似分子索引（可用 pipeline/build-molecule-similarity.py 重建）
+data/similarity/
