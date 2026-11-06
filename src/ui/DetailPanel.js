@@ -25,6 +25,33 @@ import {
 } from "../data/taxonomyInfo.js";
 import { renderSmilesToSvg } from "./smilesRender.js";
 
+/** HTTP 页面不是 secure context 时，navigator.clipboard 可能不可用或拒绝写入 */
+async function copyText(text) {
+  try {
+    if (window.isSecureContext && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (_) {}
+  let ta = null;
+  try {
+    ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.cssText =
+      "position:fixed;left:-9999px;top:0;opacity:0;pointer-events:none";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    ta.setSelectionRange(0, ta.value.length);
+    return document.execCommand("copy");
+  } catch (_) {
+    return false;
+  } finally {
+    ta?.remove();
+  }
+}
+
 function legendHtml() {
   return `
     <ul class="legend">
@@ -203,6 +230,7 @@ function headerHtml(p, metaData) {
   const layer = layerLabel(p.layer) || p.layer || "—";
   return `
     <button type="button" class="back-btn" id="backBtn">← 返回说明</button>
+    <button type="button" class="mol-narrate" data-companion-reveal title="让小助手飞到右边，逐个点开结构式、分类和出处">✦ 让小助手介绍</button>
     <span class="kicker">${esc(layer)} · ${esc(p.kingdom || "—")} · ${esc(
     kindLabel(p.kind)
   )}</span>
@@ -564,6 +592,17 @@ function nodeCardHtml(node) {
 export function mountDetailPanel(el) {
   let renderToken = 0;
 
+  // 详情卡里的「让小助手介绍」由 TreeScene 接管
+  el.addEventListener("click", (e) => {
+    if (e.target.closest("[data-companion-reveal]")) {
+      window.dispatchEvent(new CustomEvent("eco:companion-reveal"));
+      return;
+    }
+    if (e.target.closest("[data-companion-narrate]")) {
+      window.dispatchEvent(new CustomEvent("eco:companion-narrate"));
+    }
+  });
+
   function bindBack() {
     el.querySelector("#backBtn")?.addEventListener("click", () =>
       setSelected(null)
@@ -636,11 +675,10 @@ export function mountDetailPanel(el) {
         const url = `${location.origin}${
           location.pathname
         }#n=${encodeURIComponent(p.id)}`;
-        try {
-          await navigator.clipboard.writeText(url);
+        if (await copyText(url)) {
           shareBtn.textContent = "已复制";
           setTimeout(() => (shareBtn.textContent = "复制链接"), 1200);
-        } catch (_) {
+        } else {
           shareBtn.textContent = "复制失败";
           setTimeout(() => (shareBtn.textContent = "复制链接"), 1200);
         }
@@ -743,11 +781,10 @@ export function mountDetailPanel(el) {
     const copy = el.querySelector("#copySmiles");
     if (copy && metaData?.smiles) {
       copy.addEventListener("click", async () => {
-        try {
-          await navigator.clipboard.writeText(metaData.smiles);
+        if (await copyText(metaData.smiles)) {
           copy.textContent = "已复制";
           setTimeout(() => (copy.textContent = "复制"), 1200);
-        } catch (_) {
+        } else {
           copy.textContent = "复制失败";
           setTimeout(() => (copy.textContent = "复制"), 1200);
         }

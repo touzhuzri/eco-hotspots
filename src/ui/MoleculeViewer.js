@@ -98,6 +98,11 @@ export function createMoleculeViewer() {
   let currentKey = "";
   let moleculeGroup = null;
   let resumeTimer = 0;
+  let nudgeTimer = 0;
+  let pulseT = 0;
+  let tugT = 0;
+  let tugStrength = 1;
+  const tugDir = new THREE.Vector3(1, 0.15, 0.35).normalize();
   let lastFit = { maxXZ: 4, maxY: 4 };
 
   function clearMolecule() {
@@ -134,6 +139,7 @@ export function createMoleculeViewer() {
 
   function build(data) {
     clearMolecule();
+    tugT = 0;
     const atoms = data.a || [];
     const coords = data.c || [];
     const bonds = data.b || [];
@@ -250,7 +256,50 @@ export function createMoleculeViewer() {
     if (!visible) return;
     raf = requestAnimationFrame(loop);
     controls.update();
+    if (pulseT > 0) {
+      pulseT = Math.max(0, pulseT - 0.022);
+      const k = 1 + Math.sin((1 - pulseT) * Math.PI * 6) * 0.1 * pulseT;
+      moleculeGroup?.scale.setScalar(k);
+    } else if (moleculeGroup) {
+      moleculeGroup.scale.setScalar(1);
+    }
+    if (tugT > 0 && moleculeGroup) {
+      tugT = Math.max(0, tugT - 0.018);
+      const k =
+        Math.sin((1 - tugT) * Math.PI * 5) * tugT * 0.35 * tugStrength;
+      moleculeGroup.position.copy(tugDir).multiplyScalar(k);
+    } else if (moleculeGroup) {
+      moleculeGroup.position.set(0, 0, 0);
+    }
     renderer.render(scene, camera);
+  }
+
+  /** 被小助手戳/拍时，让分子转快一点，像有反应 */
+  function nudge(strength = 1) {
+    if (!visible) return;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.9 + 5 * strength;
+    clearTimeout(nudgeTimer);
+    nudgeTimer = window.setTimeout(() => {
+      if (visible) controls.autoRotateSpeed = 0.9;
+    }, 1400);
+  }
+
+  /** 被拍/蹦时，分子轻微弹一下 */
+  function pulse() {
+    if (!visible) return;
+    pulseT = 1;
+  }
+
+  /** 被小助手拉扯时，分子朝它弹出去再回弹 */
+  function tug(dir, strength = 1) {
+    if (!visible) return;
+    tugT = 1;
+    tugStrength = strength;
+    if (dir) {
+      tugDir.set(dir.x || 0, dir.y || 0, dir.z || 0);
+      if (tugDir.lengthSq() > 1e-6) tugDir.normalize();
+    }
   }
 
   function play() {
@@ -276,9 +325,13 @@ export function createMoleculeViewer() {
       resize();
       fitCamera(lastFit, camera.aspect);
     });
+    window.dispatchEvent(
+      new CustomEvent("eco:idle-3d", { detail: { viewer: api } })
+    );
   }
 
   function hide() {
+    const wasVisible = visible;
     visible = false;
     if (raf) {
       cancelAnimationFrame(raf);
@@ -288,8 +341,18 @@ export function createMoleculeViewer() {
       clearTimeout(resumeTimer);
       resumeTimer = 0;
     }
+    if (nudgeTimer) {
+      clearTimeout(nudgeTimer);
+      nudgeTimer = 0;
+    }
     controls.autoRotate = false;
+    controls.autoRotateSpeed = 0.9;
+    tugT = 0;
+    moleculeGroup?.position.set(0, 0, 0);
     host.hidden = true;
+    if (wasVisible) {
+      window.dispatchEvent(new CustomEvent("eco:idle-3d-hide"));
+    }
   }
 
   function destroy() {
@@ -334,5 +397,27 @@ export function createMoleculeViewer() {
   });
   ro.observe(host);
 
-  return { host, show, hide, resize, destroy };
+  const api = {
+    host,
+    show,
+    hide,
+    resize,
+    destroy,
+    nudge,
+    pulse,
+    tug,
+    get scene() {
+      return scene;
+    },
+    get camera() {
+      return camera;
+    },
+    get controls() {
+      return controls;
+    },
+    get bounds() {
+      return lastFit;
+    },
+  };
+  return api;
 }

@@ -30,6 +30,14 @@ import {
 } from "../engine/engineApi.js";
 import { loadFacets } from "../engine/moleculeFacets.js";
 import { SOLAR_TERMS, currentSolarTermIndex } from "../data/solarTerms.js";
+import {
+  classInfoFor,
+  familyInfoFor,
+  ecologyText,
+} from "../data/taxonomyInfo.js";
+import { NATURAL_PRODUCT_ALIASES } from "../data/naturalProductAliases.js";
+import { randomPoint } from "../ui/ExploreActions.js";
+import { getMoleculeMeta } from "../engine/moleculeMeta.js";
 import { getState, setSelected, subscribe } from "../state/store.js";
 import {
   WORLD_SCALE,
@@ -44,6 +52,7 @@ import {
   mulberry32,
   crownGeom,
 } from "./starTree.js";
+import { createCompanion } from "./Companion.js";
 
 /** 树体主色：按层位（叶绿 / 干褐 / 根褐黄 / 土黄褐） */
 const LAYER_COLOR = {
@@ -550,7 +559,7 @@ export function mountTreeScene(rootEl) {
     <div class="scene-settings" id="ecoSetPanel" hidden>
       <div class="ss-title">场景设置</div>
       <label class="ss-tog"><input type="checkbox" id="ssShowTrunk" checked/> 显示树干/枝</label>
-      <label class="ss-tog"><input type="checkbox" id="ssBloom"/> 树干 Bloom</label>
+      <label class="ss-tog"><input type="checkbox" id="ssBloom" checked/> 树干 Bloom</label>
       <label>光晕强度 <input type="range" id="ssBloomS" min="0" max="0.8" step="0.02" value="0.12"/><em id="ssBloomSv">0.12</em></label>
       <label>光晕半径 <input type="range" id="ssBloomR" min="0" max="1" step="0.02" value="0.25"/><em id="ssBloomRv">0.25</em></label>
       <label>光晕阈值 <input type="range" id="ssBloomT" min="0" max="1" step="0.02" value="0.45"/><em id="ssBloomTv">0.45</em></label>
@@ -559,6 +568,32 @@ export function mountTreeScene(rootEl) {
       <label>点数量 <input type="range" id="ssCount" min="4000" max="32000" step="1000" value="28000"/><em id="ssCountv">全量</em></label>
       <label>自转速度 <input type="range" id="ssSpin" min="0" max="0.6" step="0.01" value="0.08"/><em id="ssSpinv">0.08</em></label>
       <label class="ss-tog"><input type="checkbox" id="ssAuto" checked/> 自动旋转</label>
+      <div class="ss-sep"></div>
+      <div class="ss-title ss-ai-title">AI / API</div>
+      <div class="ss-ai">
+        <label>服务商
+          <select id="ssAiProvider">
+            <option value="glm">GLM（智谱）</option>
+            <option value="deepseek">DeepSeek</option>
+            <option value="mimo">MiMo</option>
+            <option value="custom">自定义（OpenAI 兼容）</option>
+          </select>
+        </label>
+        <label>Base URL
+          <input id="ssAiBase" type="text" spellcheck="false" placeholder="https://…"/>
+        </label>
+        <label>模型
+          <input id="ssAiModel" type="text" spellcheck="false" placeholder="glm-4.6"/>
+        </label>
+        <label>API Key
+          <input id="ssAiKey" type="password" autocomplete="off" spellcheck="false" placeholder="留空则不修改"/>
+        </label>
+        <div class="ss-ai-actions">
+          <button type="button" id="ssAiSave">保存</button>
+          <button type="button" id="ssAiTest">测试连接</button>
+        </div>
+        <p class="ss-ai-status" id="ssAiStatus">读取配置中…</p>
+      </div>
       <button type="button" class="ss-close" id="ssClose">关闭</button>
     </div>
   `;
@@ -633,8 +668,17 @@ export function mountTreeScene(rootEl) {
   };
   const vel = { yaw: 0, pitch: 0 };
   const DIST_MIN = 1.2;
+  // 缩放与选中状态的切换阈值：留出回差，避免在临界点反复选中/取消
+  // （否则 URL hash、小助手和视角会来回抖）。
+  // 取消选中只在真正缩到最远时发生，之前一直以选中分子为中心，
+  // 不再在 92% 处提前把视角中心拽回树心。
+  const ZOOM_DESELECT_AT = DIST_MAX * 0.995;
+  const ZOOM_FULL_AT = DIST_MAX * 0.985;
+  const ZOOM_RESTORE_AT = DIST_MAX * 0.84;
   const fly = {
     active: false,
+    // 是否是“选中分子”的漂流；这种飞行允许拖动转向，但不取消推进
+    select: false,
     t: 0,
     dur: 1.8,
     from: null,
@@ -642,6 +686,79 @@ export function mountTreeScene(rootEl) {
     camStart: null,
     lookStart: null,
   };
+
+  const reduceMotion = !!window.matchMedia?.("(prefers-reduced-motion: reduce)")
+    ?.matches;
+  const companion = createCompanion();
+  scene.add(companion.group);
+  // 待机 3D 分子视口出现时，小助手进入那个场景陪分子玩
+  window.addEventListener("eco:idle-3d", (e) => {
+    const viewer = e.detail?.viewer;
+    if (viewer) companion.enterIdleToy(viewer);
+  });
+  window.addEventListener("eco:idle-3d-hide", () => companion.exitIdleToy());
+  // 点小助手本体：第一次自动演示，之后弹出快捷方式
+  function toggleCompanionMenu() {
+    if (companion.isMenuOpen()) {
+      companion.hideMenu();
+      return;
+    }
+    const sel = selectedPoint();
+    if (!autoNarrateSeen) {
+      autoNarrateSeen = true;
+      try {
+        localStorage.setItem("eco-companion-auto-v1", "1");
+      } catch (_) {}
+      clearTimeout(autoNarrateTimer);
+      autoNarrateTimer = 0;
+      if (sel) startCompanionNarration();
+      else startCompanionTour();
+      return;
+    }
+    companion.showMenu(
+      sel
+        ? [
+            {
+              id: "reveal",
+              label: "介绍它",
+              hint: "飞到右侧，点开结构、分类和出处",
+              primary: true,
+            },
+            { id: "narrate", label: "简单讲讲", hint: "滑到右侧逐段念一遍" },
+            { id: "analyze", label: "快速分析", hint: "让 AI 分析这颗分子" },
+            { id: "tour", label: "带我逛逛", hint: "随机挑一颗分子讲讲" },
+            { id: "ask", label: "问问 AI", hint: "打开底部分析坞" },
+          ]
+        : [
+            {
+              id: "tour",
+              label: "带我逛逛",
+              hint: "随机挑一颗分子讲讲",
+              primary: true,
+            },
+            { id: "analyze", label: "快速分析", hint: "让 AI 分析当前视图" },
+            { id: "ask", label: "问问 AI", hint: "打开底部分析坞" },
+          ]
+    );
+  }
+  window.addEventListener("eco:companion-click", toggleCompanionMenu);
+  window.addEventListener("eco:companion-action", (e) => {
+    const action = e.detail?.action;
+    if (action === "reveal") startCompanionReveal();
+    else if (action === "analyze") quickAnalyze();
+    else if (action === "narrate") startCompanionNarration();
+    else if (action === "tour") startRandomCompanionNarration();
+    else if (action === "ask") {
+      window.dispatchEvent(new CustomEvent("eco:ai-open"));
+    }
+  });
+  // 详情卡里的「让小助手介绍」/旧版「让小助手讲讲」
+  window.addEventListener("eco:companion-reveal", () =>
+    startCompanionReveal()
+  );
+  window.addEventListener("eco:companion-narrate", () =>
+    startCompanionNarration()
+  );
 
   /** `~` 第一人称：指针锁定 + 隐藏光标；再按 `~` / Esc 退出 */
   let fpMode = false;
@@ -692,7 +809,7 @@ export function mountTreeScene(rootEl) {
 
   /** 可调场景参数（右上角设置面板） — 锁定默认：缩放60/亮6/2.8万点/自转0.08 */
   const set = {
-    bloom: false,
+    bloom: true,
     bloomStrength: 0.12,
     bloomRadius: 0.25,
     bloomThreshold: 0.45,
@@ -872,6 +989,8 @@ export function mountTreeScene(rootEl) {
   }
   window.addEventListener("keydown", (e) => {
     if (wasdTyping(e)) return;
+    // AI 对话框打开时，场景快捷键暂停，避免操作到后面的世界树
+    if (document.body.classList.contains("ai-dock-open")) return;
     // `~`（Backquote）：开关第一人称
     if (e.code === "Backquote") {
       e.preventDefault();
@@ -887,6 +1006,7 @@ export function mountTreeScene(rootEl) {
     // Q：取消选中
     if (k === "q") {
       e.preventDefault();
+      zoomRestoreId = null;
       setSelected(null);
       return;
     }
@@ -1174,6 +1294,19 @@ export function mountTreeScene(rootEl) {
   let raf = 0;
   let labelBoxes = [];
   let lastSel = null;
+  // 第一次选中分子时，小助手自动滑到右栏讲解；之后点它弹出快捷方式
+  let autoNarrateTimer = 0;
+  let randomNarrateTimer = 0;
+  let autoNarrateSeen = false;
+  try {
+    autoNarrateSeen =
+      localStorage.getItem("eco-companion-auto-v1") === "1";
+  } catch (_) {}
+  let focusStarPos = null;
+  // 缩到最远时暂时取消选中，重新放大后恢复
+  let zoomRestoreId = null;
+  let autoDeselectForZoom = false;
+  let restoringFromZoom = false;
   // ── 闲置序列：先回到初始总览，再化形钟表 / 分子竹简 ──
   let idleActive = false;
   let idleClockPending = false;
@@ -1203,6 +1336,7 @@ export function mountTreeScene(rootEl) {
   let selRipple = null;
   let selRippleStart = null;
   let lastInteraction = performance.now();
+  let wasGuiding = false;
   let leaves = [];
   let leafNext = 999;
   let leafGeo = null;
@@ -1429,12 +1563,7 @@ export function mountTreeScene(rootEl) {
           : set.catalogCount,
       spread: P.spread,
     });
-    // 超大数据：默认关树干 Bloom，避免卡顿
-    if (nStruct > 80000 && set.bloom) {
-      set.bloom = false;
-      const cb = rootEl.querySelector("#ssBloom");
-      if (cb) cb.checked = false;
-    }
+    // 默认开启 Bloom；如果现场显卡吃力，可在右上角 ⚙ 里手动关闭。
     productStars = mols;
     const ecoCountEl = rootEl.querySelector("#ecoCount");
     if (ecoCountEl) {
@@ -3081,6 +3210,7 @@ export function mountTreeScene(rootEl) {
   function flyToView(tx, ty, tz, dist, pitch, dur = 1.8) {
     exitFP();
     fly.active = true;
+    fly.select = false;
     fly.dur = dur;
     fly.t = 0;
     fly.camStart = camera.position.clone();
@@ -3117,6 +3247,7 @@ export function mountTreeScene(rootEl) {
     ).multiplyScalar(0.55);
 
     fly.active = true;
+    fly.select = true;
     fly.dur = 1.8;
     fly.t = 0;
     fly.camStart = camera.position.clone();
@@ -3643,6 +3774,7 @@ export function mountTreeScene(rootEl) {
   /** @type {{star:object, ax:number, ay:number, az:number}[]} */
   let linkPairs = [];
   let hoverLinkIdx = -1;
+  let linkBuildTimer = 0;
 
   function disposeLinkLines() {
     linkParent = "";
@@ -4204,6 +4336,73 @@ export function mountTreeScene(rootEl) {
 
   let last = 0;
   let frameN = 0;
+  let guideDrag = null;
+  let guideScroll = null;
+
+  /** 导览里“拖动世界树”的镜头动画 */
+  function startGuideDrag() {
+    guideDrag = {
+      t0: performance.now(),
+      dur: 2200,
+      yaw0: cam.yaw,
+      dyaw: 0.62,
+      pitch0: cam.pitch,
+      dpitch: 0.04,
+    };
+    cam.auto = false;
+  }
+
+  /** 导览里“拖动右侧页面”的滚动动画（比原生 smooth 更像被拉着走） */
+  function guideScrollTo(top, dur = 950) {
+    const detail = document.querySelector(".detail");
+    if (!detail) return;
+    guideScroll = {
+      el: detail,
+      from: detail.scrollTop,
+      to: Math.max(0, Math.min(detail.scrollHeight - detail.clientHeight, top)),
+      t0: performance.now(),
+      dur,
+    };
+  }
+
+  /** 某个详情区块滚到视口顶部需要的 scrollTop */
+  function sectionScrollTop(detail, node) {
+    if (!detail || !node) return 0;
+    return (
+      detail.scrollTop +
+      node.getBoundingClientRect().top -
+      detail.getBoundingClientRect().top -
+      14
+    );
+  }
+
+  function sectionByTitle(detail, re) {
+    if (!detail) return null;
+    return (
+      Array.from(detail.querySelectorAll(".mol-section")).find((s) =>
+        re.test(s.querySelector("h3")?.textContent || "")
+      ) || null
+    );
+  }
+
+  /** 小助手“点”界面时的落点特效：一圈涟漪 + 目标区块短暂高亮 */
+  function companionTapFx(el) {
+    if (!el || !el.isConnected) return;
+    const r = el.getBoundingClientRect();
+    if (r.width < 2 && r.height < 2) return;
+    const x = Math.max(10, Math.min(W - 10, r.left + Math.min(26, r.width * 0.5)));
+    const y = Math.max(10, Math.min(H - 10, r.top + Math.min(18, r.height * 0.5)));
+    const ring = document.createElement("div");
+    ring.className = "companion-tap-ring";
+    ring.style.left = `${x}px`;
+    ring.style.top = `${y}px`;
+    document.body.appendChild(ring);
+    setTimeout(() => ring.remove(), 950);
+    el.classList.remove("companion-focus");
+    void el.offsetWidth;
+    el.classList.add("companion-focus");
+    setTimeout(() => el.classList.remove("companion-focus"), 1900);
+  }
   function tick(ts) {
     if (!last) last = ts;
     const dt = Math.min(0.05, (ts - last) / 1000);
@@ -4258,26 +4457,95 @@ export function mountTreeScene(rootEl) {
       cam.dist += (cam.distTarget - cam.dist) * zk;
     }
 
-    // 拉到最远：未拖拽/WASD 时缓缓回到树心
-    if (
-      !fly.active &&
-      !fpMode &&
-      !wasdActive() &&
-      !dragging &&
-      cam.distTarget >= DIST_MAX * 0.92
-    ) {
-      const fx0 = 0;
-      const fy0 = ((TREE_Y1 + TREE_Y0) / 2) * WORLD_SCALE;
-      const fz0 = 0;
-      cam.fx += (fx0 - cam.fx) * 0.08;
-      cam.fy += (fy0 - cam.fy) * 0.08;
-      cam.fz += (fz0 - cam.fz) * 0.08;
+    // 缩到最远：暂时回到“未选中”状态；重新放大再恢复该分子
+    if (!fly.active && !fpMode && !wasdActive() && !dragging) {
+      const st = getState();
+      // 目标到最远、且相机实际距离也走完最后一段，才算“缩到底”
+      const fullyOut =
+        cam.distTarget >= ZOOM_DESELECT_AT && cam.dist >= ZOOM_FULL_AT;
+      if (st.selectedId && fullyOut) {
+        zoomRestoreId = st.selectedId;
+        autoDeselectForZoom = true;
+        setSelected(null);
+        autoDeselectForZoom = false;
+      } else if (
+        !st.selectedId &&
+        cam.distTarget <= ZOOM_RESTORE_AT &&
+        zoomRestoreId
+      ) {
+        const id = zoomRestoreId;
+        zoomRestoreId = null;
+        restoringFromZoom = true;
+        setSelected(id);
+        restoringFromZoom = false;
+      }
+    }
+
+    // 视角中心随缩放切换：
+    // - 有选中分子且没有缩到底 → 以选中分子为中心
+    // - 缩到底（或没有选中）→ 回树心；重新放大后再次回到选中分子
+    if (!fly.active && !fpMode && !wasdActive() && !dragging) {
+      const star = getState().selectedId ? focusStarPos : null;
+      const fullyOut =
+        cam.distTarget >= ZOOM_DESELECT_AT && cam.dist >= ZOOM_FULL_AT;
+      if (star && !fullyOut) {
+        cam.fx += (star.x - cam.fx) * 0.08;
+        cam.fy += (star.y - cam.fy) * 0.08;
+        cam.fz += (star.z - cam.fz) * 0.08;
+      } else if (fullyOut) {
+        const fy0 = ((TREE_Y1 + TREE_Y0) / 2) * WORLD_SCALE;
+        cam.fx += (0 - cam.fx) * 0.08;
+        cam.fy += (fy0 - cam.fy) * 0.08;
+        cam.fz += (0 - cam.fz) * 0.08;
+      }
+    }
+
+    if (guideDrag) {
+      const u = Math.min(
+        1,
+        (performance.now() - guideDrag.t0) / guideDrag.dur
+      );
+      const e = u * u * (3 - 2 * u);
+      cam.yaw = guideDrag.yaw0 + guideDrag.dyaw * e;
+      cam.pitch = Math.max(
+        -PITCH_LIM,
+        Math.min(PITCH_LIM, guideDrag.pitch0 + guideDrag.dpitch * e)
+      );
+      if (u >= 1) {
+        guideDrag = null;
+        if (set.autoRotate) cam.auto = true;
+      }
+    }
+
+    if (guideScroll) {
+      const u = Math.min(
+        1,
+        (performance.now() - guideScroll.t0) / guideScroll.dur
+      );
+      const e = u * u * (3 - 2 * u);
+      guideScroll.el.scrollTop =
+        guideScroll.from + (guideScroll.to - guideScroll.from) * e;
+      if (u >= 1) guideScroll = null;
     }
 
     applyCamera();
     updateFlow(dt);
 
     const t = now;
+    // 苯环小助手：平时在左下视野；待机 3D 分子出现时进入那个视口
+    if (companion.isIdleToy()) {
+      companion.updateIdleToy(dt, t);
+    } else {
+      if (introDone && !companion.visible) companion.show();
+      companion.update(dt, t, {
+        camera,
+        width: W,
+        height: H,
+        camDist: cam.dist,
+        idle: document.body.classList.contains("idle"),
+        reduceMotion,
+      });
+    }
     // 世界树整体呼吸：约 8 秒一轮，只改 shader uniform / 透明度
     const breath = 0.5 + 0.5 * Math.sin(t * ((Math.PI * 2) / 8));
     const pulse = 0.94 + 0.08 * breath;
@@ -4431,11 +4699,19 @@ export function mountTreeScene(rootEl) {
     if (!introPaused) tickIntro(now);
     updateEvents(dt);
 
-    // 闲置 6 秒：淡出 UI，先回初始总览，再进入钟表/分子简介
+    // 闲置 12 秒进入钟表；AI 对话打开或刚有 AI 交互时不打断
     const introUI = document.body.classList.contains("ui-intro");
-    if (introUI) {
+    const nowMs = performance.now();
+    const aiOpen = document.body.classList.contains("ai-dock-open");
+    const aiRecent = nowMs - (window.__aiLastActive || 0) < 12000;
+    // 小助手正在导览时不能进待机，否则它会指着已经隐去的界面讲话；
+    // 导览刚结束时也重新计时，让用户看清它飞回家。
+    const guiding = companion.isGuiding();
+    if (wasGuiding && !guiding) lastInteraction = nowMs;
+    wasGuiding = guiding;
+    if (introUI || aiOpen || aiRecent || guiding) {
       document.body.classList.remove("idle");
-    } else if (performance.now() - lastInteraction > 6000) {
+    } else if (nowMs - lastInteraction > 12000) {
       document.body.classList.add("idle");
     }
 
@@ -4445,9 +4721,23 @@ export function mountTreeScene(rootEl) {
       document.body.classList.contains("idle") || introUI;
     const introClockShift =
       idleActive && idleIntroPoint ? Math.min(W * 0.24, 320) : 0;
-    viewOffsetTarget = idleNow ? introClockShift : sideOffset;
+    // 选中分子时把它放到屏幕正中（暂时以它为视角中心）；
+    // 缩放到最远或取消选中后，再回到两侧面板之间的原始取景中心。
+    const selNow = !!getState().selectedId;
+    const zoomedOut = cam.distTarget >= ZOOM_DESELECT_AT;
+    viewOffsetTarget = idleNow
+      ? introClockShift
+      : selNow && !zoomedOut
+        ? 0
+        : sideOffset;
     if (Math.abs(viewOffsetTarget - viewOffsetX) > 0.05) {
-      viewOffsetX += (viewOffsetTarget - viewOffsetX) * Math.min(1, dt * 3);
+      // 选中/取消时画面会整体横移 96px；用限速的指数缓动，
+      // 避免掉帧时第一帧直接跳 10px 以上，看起来像被拽了一下。
+      const dv = viewOffsetTarget - viewOffsetX;
+      const step = dv * (1 - Math.exp(-dt * 2.2));
+      const maxStep = 150 * dt;
+      viewOffsetX +=
+        Math.sign(step) * Math.min(Math.abs(step), Math.max(0.01, maxStep));
       camera.setViewOffset(W, H, viewOffsetX, 0, W, H);
     }
 
@@ -4519,14 +4809,18 @@ export function mountTreeScene(rootEl) {
   // 输入
   let dragging = false;
   let dragDist = 0;
+  let flySteer = false;
   let lx = 0;
   let ly = 0;
 
   function onDown(e) {
     if (fpMode) return;
+    // 选中分子的漂流（flyTo）：拖动只调整目的地朝向，镜头继续推进，
+    // 不再一按下去就取消飞行、绕漂流途中的临时中心转。
+    flySteer = fly.active && fly.select;
     dragging = true;
     dragDist = 0;
-    fly.active = false;
+    if (!flySteer) fly.active = false;
     vel.yaw = 0;
     vel.pitch = 0;
     lx = e.clientX;
@@ -4555,35 +4849,55 @@ export function mountTreeScene(rootEl) {
     // 诗云 orbit：yaw -= dx*0.005；pitch += dy*0.005
     const dyaw = -dx * ORBIT_SENS;
     const dpitch = dy * ORBIT_SENS;
-    cam.yaw += dyaw;
-    cam.pitch = Math.max(
-      -PITCH_LIM,
-      Math.min(PITCH_LIM, cam.pitch + dpitch)
-    );
-    // 松手惯性用 rad/s，而不是“最后一次事件增量”。
-    // 否则快速拖动会在松手后按帧叠加一个巨大的角度，画面像被甩回原点。
-    const nowMs = performance.now();
-    const dtMove = Math.max(
-      0.008,
-      Math.min(0.08, (nowMs - lastMoveT) / 1000 || 0.016)
-    );
-    lastMoveT = nowMs;
-    const MAX_AV = 4.0;
-    vel.yaw = Math.max(-MAX_AV, Math.min(MAX_AV, dyaw / dtMove));
-    vel.pitch = Math.max(-MAX_AV, Math.min(MAX_AV, dpitch / dtMove));
+    if (flySteer && fly.active) {
+      // 漂流中：把拖动量叠加到飞行目的地，镜头继续靠近分子
+      fly.to.yaw += dyaw;
+      fly.to.pitch = Math.max(
+        -PITCH_LIM,
+        Math.min(PITCH_LIM, fly.to.pitch + dpitch)
+      );
+      vel.yaw = 0;
+      vel.pitch = 0;
+    } else {
+      cam.yaw += dyaw;
+      cam.pitch = Math.max(
+        -PITCH_LIM,
+        Math.min(PITCH_LIM, cam.pitch + dpitch)
+      );
+      // 松手惯性用 rad/s，而不是“最后一次事件增量”。
+      // 否则快速拖动会在松手后按帧叠加一个巨大的角度，画面像被甩回原点。
+      const nowMs = performance.now();
+      const dtMove = Math.max(
+        0.008,
+        Math.min(0.08, (nowMs - lastMoveT) / 1000 || 0.016)
+      );
+      lastMoveT = nowMs;
+      const MAX_AV = 4.0;
+      vel.yaw = Math.max(-MAX_AV, Math.min(MAX_AV, dyaw / dtMove));
+      vel.pitch = Math.max(-MAX_AV, Math.min(MAX_AV, dpitch / dtMove));
+    }
     lx = e.clientX;
     ly = e.clientY;
   }
   function onUp(e) {
     if (!dragging) return;
+    const wasSteer = flySteer;
+    flySteer = false;
     dragging = false;
     try {
       canvas.releasePointerCapture(e.pointerId);
     } catch (_) {}
+    // 漂流中的拖动/短按不触发星点拾取，也不取消选中，让飞行自己走完
+    if (wasSteer) return;
     if (dragDist < 10) {
       // 钟表/待机简介中点击只用于退出，不按键位拾取星点；
       // 退出后由待机逻辑自动选回原来的分子。
       if (clockAmount > 0.05 || pendingReselectId) return;
+      // 点到小助手本体：优先于星点拾取（它在最上层）
+      if (companion.hitTest(e.clientX, e.clientY)) {
+        toggleCompanionMenu();
+        return;
+      }
       const rect = canvas.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
@@ -4600,6 +4914,7 @@ export function mountTreeScene(rootEl) {
         setSelected(pick.star.id);
         return;
       }
+      zoomRestoreId = null;
       setSelected(null);
       if (set.autoRotate) cam.auto = true;
     } else if (set.autoRotate) {
@@ -4694,16 +5009,45 @@ export function mountTreeScene(rootEl) {
   subscribe(() => {
     const { selectedId } = getState();
     if (selectedId !== lastSel) {
+      // 选中对象变了，正在讲的字幕/指向就失效了
+      if (companion.isGuiding()) companion.stopGuide();
       if (!selectedId) {
+        clearTimeout(linkBuildTimer);
         disposeLinkLines();
+        companion.onSelect(null);
+        focusStarPos = null;
+        if (!autoDeselectForZoom) zoomRestoreId = null;
+        // 手动取消选中：视角中心平滑回到树心（缩放距离保持不变）。
+        // 缩放到最远触发的自动取消不走 fly，否则会改写 distTarget 和用户
+        // 正在进行的缩放打架，造成阈值附近来回拉扯。
+        if (!autoDeselectForZoom) {
+          const centerY = ((TREE_Y1 + TREE_Y0) / 2) * WORLD_SCALE;
+          flyToView(0, centerY, 0, cam.distTarget, cam.pitch, 1.1);
+        }
         if (selAura) selAura.visible = false;
         if (selRipple) selRipple.visible = false;
         selRippleStart = null;
+        clearTimeout(autoNarrateTimer);
+        autoNarrateTimer = 0;
       } else {
         const a = productStars.find((x) => x.id === selectedId);
         if (a) {
-          flyTo(a.pos);
-          buildSourceLinks(a);
+          focusStarPos = new THREE.Vector3(a.pos.x, a.pos.y, a.pos.z);
+          if (!restoringFromZoom) zoomRestoreId = null;
+          companion.onSelect(a.pos, {
+            distance: camera.position.distanceTo(a.pos),
+          });
+          if (restoringFromZoom) {
+            // 从远景观恢复：不启镜头飞行，交给每帧中心阻尼平滑移到分子，
+            // 避免和用户正在进行的缩放互相打断。
+          } else {
+            flyTo(a.pos);
+          }
+          // 先让小助手完成穿越（1.8s），落地后再让同源连线浮现
+          clearTimeout(linkBuildTimer);
+          linkBuildTimer = setTimeout(() => {
+            if (getState().selectedId === a.id) buildSourceLinks(a);
+          }, 2100);
           if (selAura) {
             selAura.visible = true;
             selAura.position.copy(a.pos);
@@ -4716,6 +5060,21 @@ export function mountTreeScene(rootEl) {
             selRipple.position.copy(a.pos);
           }
           selRippleStart = null;
+
+          // 首次体验：等它飞到星星旁后，自动滑到右栏讲解一次
+          if (!autoNarrateSeen && introDone && !restoringFromZoom) {
+            clearTimeout(autoNarrateTimer);
+            const firstId = selectedId;
+            autoNarrateTimer = setTimeout(() => {
+              autoNarrateTimer = 0;
+              if (getState().selectedId !== firstId) return;
+              autoNarrateSeen = true;
+              try {
+                localStorage.setItem("eco-companion-auto-v1", "1");
+              } catch (_) {}
+              startCompanionNarration();
+            }, 2600);
+          }
         }
       }
       if (!suppressIdleReset) markInteraction();
@@ -4792,12 +5151,192 @@ export function mountTreeScene(rootEl) {
     searchActive = -1;
   }
 
+  // ── 模糊搜索：拼错字也能命中 ──────────────────────────────
+  const HAS_CJK = /[㐀-鿿]/;
+
+  function escapeHtml(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => {
+      return {
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      }[c];
+    });
+  }
+
+  /** 受限 Damerau-Levenshtein（含相邻换位），超过 max 提前结束 */
+  function damerau(a, b, max) {
+    const n = a.length;
+    const m = b.length;
+    if (!n) return m;
+    if (!m) return n;
+    if (Math.abs(n - m) > max) return max + 1;
+    let prev2 = null;
+    let prev = new Array(m + 1);
+    let cur = new Array(m + 1);
+    for (let j = 0; j <= m; j++) prev[j] = j;
+    for (let i = 1; i <= n; i++) {
+      cur[0] = i;
+      let rowMin = i;
+      const ca = a.charCodeAt(i - 1);
+      const caPrev = i > 1 ? a.charCodeAt(i - 2) : -1;
+      for (let j = 1; j <= m; j++) {
+        const cost = ca === b.charCodeAt(j - 1) ? 0 : 1;
+        let v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+        if (
+          prev2 &&
+          i > 1 &&
+          j > 1 &&
+          ca === b.charCodeAt(j - 2) &&
+          caPrev === b.charCodeAt(j - 1)
+        ) {
+          v = Math.min(v, prev2[j - 2] + 1);
+        }
+        cur[j] = v;
+        if (v < rowMin) rowMin = v;
+      }
+      if (rowMin > max) return max + 1;
+      prev2 = prev;
+      prev = cur;
+      cur = new Array(m + 1);
+    }
+    return prev[m];
+  }
+
+  /** 拉丁文：整词 / 分词逐项比对；用 bigram 预筛避免全表做 DP */
+  function fuzzyLatinDistance(q, field, maxD) {
+    if (!field || field.length < 2) return Infinity;
+    let share = false;
+    for (let i = 0; i + 1 < q.length; i++) {
+      if (field.indexOf(q.substr(i, 2)) >= 0) {
+        share = true;
+        break;
+      }
+    }
+    if (!share) return Infinity;
+    if (Math.abs(field.length - q.length) <= maxD) {
+      const d = damerau(q, field, maxD);
+      if (d <= maxD) return d;
+    }
+    if (field.length > q.length) {
+      const words = field.split(/[^a-z0-9]+/);
+      for (const w of words) {
+        if (w.length < 4 || Math.abs(w.length - q.length) > maxD) continue;
+        const d = damerau(q, w, maxD);
+        if (d <= maxD) return d;
+      }
+    }
+    return Infinity;
+  }
+
+  /** 中文：允许查询是名字的一段，且其中错一个字 */
+  function fuzzyCJKDistance(q, field, maxD) {
+    if (!field || !HAS_CJK.test(field)) return Infinity;
+    let shared = false;
+    for (let i = 0; i < q.length; i++) {
+      if (field.indexOf(q[i]) >= 0) {
+        shared = true;
+        break;
+      }
+    }
+    if (!shared) return Infinity;
+    if (Math.abs(field.length - q.length) <= maxD) {
+      const d = damerau(q, field, maxD);
+      if (d <= maxD) return d;
+    }
+    const L = q.length;
+    const lo = Math.max(1, L - maxD);
+    const hi = Math.min(field.length, L + maxD);
+    let best = Infinity;
+    for (let i = 0; i + lo <= field.length; i++) {
+      for (let len = lo; len <= hi && i + len <= field.length; len++) {
+        const d = damerau(q, field.slice(i, i + len), maxD);
+        if (d < best) best = d;
+        if (best === 0) return 0;
+      }
+    }
+    return best;
+  }
+
+  /** 中文名 → 英文名：常见天然产物 + 允许一个字写错 */
+  function aliasesFor(key) {
+    if (!HAS_CJK.test(key)) return [];
+    const out = [];
+    const seen = new Set();
+    for (const a of NATURAL_PRODUCT_ALIASES) {
+      const zh = a.zh;
+      // 中文名错一个字就可能是另一种化合物（雷公藤甲素 ≠ 雷公藤红素），
+      // 所以只对 2–4 字的短名做模糊纠错，长名必须逐字命中。
+      const hit =
+        key.includes(zh) ||
+        (key.length >= 2 && zh.includes(key)) ||
+        (key.length >= 2 &&
+          key.length <= 4 &&
+          zh.length <= 4 &&
+          damerau(key, zh, 1) <= 1);
+      if (!hit || seen.has(a.en)) continue;
+      seen.add(a.en);
+      out.push(a);
+      if (out.length >= 4) break;
+    }
+    return out;
+  }
+
+  function fuzzyHits(key, cjk) {
+    const maxD = cjk
+      ? key.length >= 2
+        ? 1
+        : 0
+      : key.length >= 8
+      ? 2
+      : key.length >= 4
+      ? 1
+      : 0;
+    if (!maxD) return [];
+    const out = [];
+    const seen = new Set();
+    for (let i = 0; i < productStars.length; i++) {
+      const s = productStars[i];
+      if (seen.has(s.id)) continue;
+      const name = (s.nameZh || "").toLowerCase();
+      const en = (s.nameEn || "").toLowerCase();
+      const org = (s.organismZh || "").toLowerCase();
+      let d = Infinity;
+      if (cjk) {
+        d = fuzzyCJKDistance(key, name, maxD);
+        if (d > maxD) d = fuzzyCJKDistance(key, org, maxD);
+      } else {
+        d = fuzzyLatinDistance(key, name, maxD);
+        if (d > maxD) d = fuzzyLatinDistance(key, en, maxD);
+        if (d > maxD) d = fuzzyLatinDistance(key, org, maxD);
+      }
+      if (d > maxD) continue;
+      seen.add(s.id);
+      const score =
+        d * 20 +
+        (s.kind === "featured" ? 0 : 10) +
+        (name.startsWith(key) || en.startsWith(key) ? 0 : 4) +
+        (cjk && name.indexOf(key[0]) >= 0 ? 0 : 2);
+      out.push({ s, score });
+      if (out.length >= 80) break; // 够排序即可，别为生僻查询扫全表
+    }
+    out.sort((a, b) => a.score - b.score);
+    return out;
+  }
+
   function runSearch(q) {
-    const key = q.trim().toLowerCase();
+    const raw = q.trim();
+    const key = raw.toLowerCase();
     if (key.length < 1) {
       hideSearchList();
       return;
     }
+    const cjk = HAS_CJK.test(key);
+    // 中文常见名 → 英文名（LOTUS 里基本都是英文名）
+    const aliases = aliasesFor(key);
+    const aliasEn = aliases.map((a) => a.en.toLowerCase());
     const featured = [];
     const rest = [];
     // 全量扫一次；22 万在防抖后可接受。精选优先展示
@@ -4807,11 +5346,14 @@ export function mountTreeScene(rootEl) {
       const en = (s.nameEn || "").toLowerCase();
       const org = (s.organismZh || "").toLowerCase();
       const ik = (s.inchikey || "").toLowerCase();
-      const hit =
+      const direct =
         name.includes(key) || en.includes(key) || org.includes(key) || ik.includes(key);
-      if (!hit) continue;
+      const aliasHit =
+        !direct &&
+        aliasEn.some((a) => name.includes(a) || en.includes(a));
+      if (!direct && !aliasHit) continue;
       const score =
-        (name.startsWith(key) ? 0 : org.startsWith(key) ? 1 : 2) +
+        (name.startsWith(key) ? 0 : aliasHit ? 1 : org.startsWith(key) ? 1 : 2) +
         (s.kind === "featured" ? 0 : 10);
       const item = { s, score };
       if (s.kind === "featured") featured.push(item);
@@ -4820,24 +5362,71 @@ export function mountTreeScene(rootEl) {
     }
     featured.sort((a, b) => a.score - b.score);
     rest.sort((a, b) => a.score - b.score);
-    searchHits = [...featured, ...rest].slice(0, 12).map((x) => x.s);
+    let hits = [...featured, ...rest].slice(0, 12).map((x) => x.s);
+
+    // 命中太少 → 补一轮模糊匹配（拼错字 / 少打字母 / 中文同音错字）
+    const fuzzyIds = new Set();
+    if (hits.length < 3 && (cjk ? key.length >= 2 : key.length >= 4)) {
+      const extra = fuzzyHits(key, cjk);
+      if (extra.length) {
+        const have = new Set(hits.map((s) => s.id));
+        for (const item of extra) {
+          if (have.has(item.s.id)) continue;
+          have.add(item.s.id);
+          hits.push(item.s);
+          fuzzyIds.add(item.s.id);
+          if (hits.length >= 12) break;
+        }
+      }
+    }
+
+    searchHits = hits;
     if (!searchHits.length) {
-      searchList.innerHTML =
-        '<div class="eco-search-item" style="cursor:default;color:#8a9bb0">无匹配结果</div>';
+      const safe = escapeHtml(raw);
+      searchList.innerHTML = `
+        <div class="eco-search-hint">本地 LOTUS 没有找到「${safe}」</div>
+        <button type="button" class="eco-search-item eco-search-net" data-q="${safe}">
+          <span class="s-name">让 AI 联网查一下「${safe}」</span>
+          <span class="s-sub">调用网络搜索，并给出可点击的来源</span>
+        </button>`;
       searchList.hidden = false;
       return;
     }
     searchActive = 0;
-    searchList.innerHTML = searchHits
-      .map((s, i) => {
-        const sub = [s.organismZh, s.kingdom, s.chemClass].filter(Boolean).join(" · ");
-        const tag = s.kind === "featured" ? "精选" : "LOTUS";
-        return `<button type="button" class="eco-search-item${i === 0 ? " active" : ""}" data-i="${i}">
+    const aliasHint =
+      aliases.length > 0
+        ? `<div class="eco-search-hint">按「${escapeHtml(
+            aliases[0].zh
+          )}」的英文名 ${escapeHtml(
+            aliases.map((a) => a.en).join(" / ")
+          )} 搜索</div>`
+        : "";
+    const fuzzyHint =
+      fuzzyIds.size > 0
+        ? `<div class="eco-search-hint">${
+            hits.length === fuzzyIds.size ? "没有完全匹配，猜你想找：" : "还可能是："
+          }</div>`
+        : "";
+    searchList.innerHTML =
+      aliasHint +
+      fuzzyHint +
+      searchHits
+        .map((s, i) => {
+          const sub = [s.organismZh, s.kingdom, s.chemClass]
+            .filter(Boolean)
+            .join(" · ");
+          const fz = fuzzyIds.has(s.id);
+          const tag = fz ? "近似" : s.kind === "featured" ? "精选" : "LOTUS";
+          return `<button type="button" class="eco-search-item${
+            i === 0 ? " active" : ""
+          }" data-i="${i}">
           <span class="s-name">${s.nameZh || s.nameEn || "未命名"}</span>
-          <span class="s-sub">${sub || ""} <span class="s-tag">${tag}</span></span>
+          <span class="s-sub">${sub || ""} <span class="s-tag${
+            fz ? " is-fuzzy" : ""
+          }">${tag}</span></span>
         </button>`;
-      })
-      .join("");
+        })
+        .join("");
     searchList.hidden = false;
   }
 
@@ -4882,6 +5471,19 @@ export function mountTreeScene(rootEl) {
     });
   });
   searchList.addEventListener("click", (e) => {
+    const net = e.target.closest(".eco-search-net");
+    if (net) {
+      const q = net.dataset.q || "";
+      hideSearchList();
+      window.dispatchEvent(
+        new CustomEvent("eco:ai-ask", {
+          detail: {
+            text: `请联网查一下「${q}」：它是什么、来自哪里、有什么已知研究？请调用 web_search 搜索公开网页，并给出可靠来源链接。`,
+          },
+        })
+      );
+      return;
+    }
     const btn = e.target.closest(".eco-search-item");
     if (!btn || btn.dataset.i == null) return;
     pickSearchHit(Number(btn.dataset.i));
@@ -4892,6 +5494,48 @@ export function mountTreeScene(rootEl) {
     if (!rootEl.querySelector(".eco-search")?.contains(e.target)) {
       hideSearchList();
     }
+  });
+
+  // AI 工具调用：基础场景动作（总览/层位/选中分子）
+  window.addEventListener("eco:ai-action", (e) => {
+    const { action, target } = e.detail || {};
+    const t = String(target || "").trim();
+    const tl = t.toLowerCase();
+    const clickView = (v) =>
+      document.querySelector(`.dock-view[data-view="${v}"]`)?.click();
+    const clickLayer = (l) =>
+      document.querySelector(`.dock-layer[data-layer="${l}"]`)?.click();
+    if (action === "reset" || /总览|overview/.test(tl)) {
+      clickView("overview");
+      return;
+    }
+    if (/根际|根系|rhizosphere|root/.test(tl)) {
+      clickLayer("rhizosphere");
+      clickView("roots");
+      return;
+    }
+    if (/冠层|树冠|canopy|crown/.test(tl)) {
+      clickLayer("canopy");
+      clickView("crown");
+      return;
+    }
+    if (/树干|trunk/.test(tl)) {
+      clickLayer("trunk");
+      return;
+    }
+    if (/土壤|soil/.test(tl)) {
+      clickLayer("soil");
+      return;
+    }
+    if (/天空|sky/.test(tl)) {
+      clickLayer("sky");
+      return;
+    }
+    if (!t) return;
+    const star = productStars.find(
+      (s) => s.inchikey === t || s.id === t || s.nameZh === t
+    );
+    if (star) setSelected(star.id);
   });
 
   window.addEventListener("resize", resize);
@@ -5084,6 +5728,22 @@ export function mountTreeScene(rootEl) {
     projectPoint(x, y, z) {
       return projectVec({ x, y, z });
     },
+    screenToWorld(px, py, depth = 4.2) {
+      camera.updateMatrixWorld();
+      const n = new THREE.Vector3(
+        (px / W) * 2 - 1,
+        1 - (py / H) * 2,
+        0.5
+      );
+      n.unproject(camera).sub(camera.position).normalize();
+      const f = new THREE.Vector3()
+        .setFromMatrixColumn(camera.matrixWorld, 2)
+        .negate();
+      const r = depth / Math.max(0.15, n.dot(f));
+      const p = camera.position.clone().addScaledVector(n, r);
+      const q = projectVec(p);
+      return { pos: p.toArray(), screen: [q.sx, q.sy] };
+    },
     projectAll() {
       return productStars.slice(0, 30).map((s) => {
         const q = projectVec(s.pos);
@@ -5105,6 +5765,481 @@ export function mountTreeScene(rootEl) {
     },
   };
 
+  /** 苯环小助手自己的界面导览：滑动、字幕、指向、拖动世界树 */
+  function startCompanionTour() {
+    const rail = document.querySelector(".explore-rail");
+    const detail = document.querySelector(".detail");
+    const railRect = rail ? rail.getBoundingClientRect() : null;
+    const detailRect = detail ? detail.getBoundingClientRect() : null;
+    const left = railRect && railRect.width ? railRect.right : 0;
+    const right =
+      detailRect && detailRect.width ? detailRect.left : W;
+    const mid = (left + right) / 2;
+    const H0 = H;
+    setSelected(null);
+    companion.stopGuide();
+    guideDrag = null;
+    guideScroll = null;
+    // 导览期间保持界面可见
+    document.body.classList.remove("idle");
+    lastInteraction = performance.now();
+    companion.startGuide(
+      [
+        {
+          px: Math.max(left + 130, W * 0.2),
+          py: H0 * 0.62,
+          duration: 3.2,
+          gesture: "wave",
+          expression: "happy",
+          text: "你好，我是苯环小助手。先带你认识一下界面。",
+        },
+        {
+          px: Math.max(left + 90, W * 0.15),
+          py: H0 * 0.4,
+          duration: 4,
+          gesture: "point",
+          expression: "curious",
+          text: "左边是探索栏：类群、层位、化学分类和来源科都在这里筛选。",
+        },
+        {
+          px: Math.min(right - 110, W * 0.8),
+          py: H0 * 0.38,
+          duration: 4,
+          gesture: "point",
+          expression: "curious",
+          text: "点一颗星，右边会展开它的结构式、性质和来源。",
+        },
+        {
+          px: mid,
+          py: H0 * 0.7,
+          duration: 4,
+          gesture: "point",
+          expression: "happy",
+          text: "底部是 AI 分析坞，可以查数据、画图、找相似分子。",
+        },
+        {
+          px: W * 0.5,
+          py: H0 * 0.52,
+          duration: 2.6,
+          gesture: "pull",
+          expression: "excited",
+          drag: true,
+          text: "看好了，我拉动世界树给你看。",
+        },
+        {
+          px: Math.max(left + 150, W * 0.2),
+          py: H0 * 0.78,
+          duration: 3,
+          gesture: "wave",
+          expression: "happy",
+          text: "逛完啦，随时可以再叫我。",
+        },
+      ],
+      {
+        onStep: (i, step) => {
+          if (step.drag) startGuideDrag();
+        },
+      }
+    );
+  }
+
+  /** 当前选中的分子星点（供导览/AI 共用） */
+  function selectedPoint() {
+    const { selectedId } = getState();
+    if (!selectedId) return null;
+    const s = productStars.find((x) => x.id === selectedId);
+    if (!s) return null;
+    return {
+      id: s.id,
+      nameZh: s.nameZh,
+      inchikey: s.inchikey,
+      kingdom: s.kingdom,
+      layer: s.layer,
+      organismZh: s.organismZh,
+    };
+  }
+
+  /** 带我逛逛：随机选一颗分子，等它飞过去后讲解右侧详情 */
+  function startRandomCompanionNarration() {
+    const p = randomPoint();
+    if (!p) {
+      startCompanionTour();
+      return;
+    }
+    const id = p.id;
+    // 这是用户主动触发的，标记首次体验已完成，避免重复自动讲解
+    autoNarrateSeen = true;
+    try {
+      localStorage.setItem("eco-companion-auto-v1", "1");
+    } catch (_) {}
+    clearTimeout(autoNarrateTimer);
+    autoNarrateTimer = 0;
+    clearTimeout(randomNarrateTimer);
+    randomNarrateTimer = setTimeout(() => {
+      randomNarrateTimer = 0;
+      if (getState().selectedId !== id) return;
+      startCompanionNarration();
+    }, 2200);
+  }
+
+  /** 快捷方式：把当前分子/视图交给 AI 坞做快速分析 */
+  function quickAnalyze() {
+    const sel = selectedPoint();
+    const text = sel
+      ? `快速分析当前选中的分子「${sel.nameZh}」：它是什么、来自哪里、有哪些结构特征，并找出相似分子。`
+      : "快速分析当前世界树视图：主要有哪些天然产物类群，各自有什么特征？";
+    window.dispatchEvent(new CustomEvent("eco:ai-ask", { detail: { text } }));
+  }
+
+  /**
+   * 选中分子后：小助手滑到右侧详情卡旁边，逐段讲解，
+   * 每到一段就“拖”着详情页滚到对应位置。内容来自当前分子的元数据。
+   */
+  async function startCompanionNarration() {
+    const sel = selectedPoint();
+    if (!sel) {
+      startCompanionTour();
+      return;
+    }
+    const selectedId = sel.id;
+    const meta = await getMoleculeMeta(sel.inchikey).catch(() => null);
+    if (getState().selectedId !== selectedId) return;
+
+    // 等详情卡把元数据渲染出来，再量各区块的位置
+    await new Promise((r) => setTimeout(r, 120));
+    const detail = document.querySelector(".detail");
+    if (!detail || getState().selectedId !== selectedId) return;
+
+    companion.stopGuide();
+    guideDrag = null;
+    guideScroll = null;
+    document.body.classList.remove("idle");
+    lastInteraction = performance.now();
+
+    const rect = detail.getBoundingClientRect();
+    const px = Math.max(72, rect.left - 106);
+    const yAt = (u) => rect.top + rect.height * u;
+    const ident = sectionByTitle(detail, /分子身份/);
+    const props = sectionByTitle(detail, /特性|来源与生态/);
+    const sources = sectionByTitle(detail, /数据来源/);
+    const maxScroll = Math.max(0, detail.scrollHeight - detail.clientHeight);
+    const to = (node, fallback) =>
+      node ? sectionScrollTop(detail, node) : maxScroll * fallback;
+
+    const ci = classInfoFor(meta);
+    const rawName = String(sel.nameZh || "").replace(/\s+/g, " ").trim();
+    const name =
+      rawName && rawName.length <= 20
+        ? rawName
+        : ci?.zh && ci.zh !== "天然产物"
+        ? ci.zh
+        : sel.organismZh || "这颗分子";
+    const layer = layerLabel(sel.layer) || sel.layer || "";
+    const org = sel.organismZh || "";
+    const head = `这是${name}${org ? `，来源是 ${org}` : ""}${
+      layer ? `，位于${layer}` : ""
+    }。`;
+    const idBits = [];
+    if (meta?.formula) idBits.push(`分子式 ${meta.formula}`);
+    if (ci?.zh && ci.zh !== "天然产物") idBits.push(`化学上属于${ci.zh}`);
+    if (meta?.rings != null) idBits.push(`含 ${meta.rings} 个环`);
+    const idText = idBits.length
+      ? `${idBits.join("，")}。`
+      : "右边能看到它的分子身份和分类。";
+
+    const pBits = [];
+    if (meta?.xlogp != null)
+      pBits.push(`XLogP ${Number(meta.xlogp).toFixed(1)}`);
+    if (meta?.tpsa != null) pBits.push(`TPSA ${Math.round(meta.tpsa)}`);
+    if (meta?.hbd != null) pBits.push(`氢键供体 ${meta.hbd}`);
+    if (meta?.hba != null) pBits.push(`氢键受体 ${meta.hba}`);
+    const propText = pBits.length
+      ? `它的分子性质：${pBits.join("，")}。`
+      : "继续往下是它的特性与用途。";
+
+    companion.startGuide(
+      [
+        {
+          px,
+          py: yAt(0.2),
+          duration: 3.2,
+          gesture: "wave",
+          expression: "happy",
+          scroll: 0,
+          text: head,
+        },
+        {
+          px,
+          py: yAt(0.38),
+          duration: 4,
+          gesture: "pull",
+          expression: "curious",
+          scroll: to(ident, 0.22),
+          text: idText,
+        },
+        {
+          px,
+          py: yAt(0.62),
+          duration: 3.8,
+          gesture: "point",
+          expression: "curious",
+          scroll: to(props, 0.58),
+          text: propText,
+        },
+        {
+          px,
+          py: yAt(0.8),
+          duration: 3,
+          gesture: "wave",
+          expression: "happy",
+          scroll: to(sources, 1),
+          text: "完整的数据和出处都在最下面，也可以收藏、分享或下载它。",
+        },
+      ],
+      {
+        place: "right",
+        onStep: (i, step) => guideScrollTo(step.scroll || 0, i ? 950 : 500),
+      }
+    );
+  }
+
+  /**
+   * 「新品介绍」式讲解：小助手跑到右侧详情卡边上，一边逐段解说，
+   * 一边主动去点开结构式、强调分类 / 性质 / 出处，界面跟着亮起来。
+   */
+  async function startCompanionReveal() {
+    const sel = selectedPoint();
+    if (!sel) {
+      startCompanionTour();
+      return;
+    }
+    const selectedId = sel.id;
+    autoNarrateSeen = true;
+    try {
+      localStorage.setItem("eco-companion-auto-v1", "1");
+    } catch (_) {}
+    clearTimeout(autoNarrateTimer);
+    autoNarrateTimer = 0;
+
+    const meta = await getMoleculeMeta(sel.inchikey).catch(() => null);
+    if (getState().selectedId !== selectedId) return;
+
+    // 等详情卡渲染出标题和区块（元数据是异步拉的）
+    let panel = null;
+    for (let i = 0; i < 26; i++) {
+      panel = document.querySelector(".detail");
+      if (panel?.querySelector(".mol-title")) break;
+      if (getState().selectedId !== selectedId) return;
+      await new Promise((r) => setTimeout(r, 60));
+    }
+    if (!panel || !panel.querySelector(".mol-title")) {
+      startCompanionNarration();
+      return;
+    }
+
+    companion.stopGuide();
+    guideDrag = null;
+    guideScroll = null;
+    document.body.classList.remove("idle");
+    lastInteraction = performance.now();
+
+    const panelRect = panel.getBoundingClientRect();
+    const px = Math.max(64, panelRect.left - 44);
+    const pyMin = panelRect.top + 70;
+    const pyMax = Math.max(
+      pyMin + 8,
+      panelRect.bottom - (H < 560 ? 120 : 230)
+    );
+    const clampPy = (y) => Math.max(pyMin, Math.min(pyMax, y));
+    const anchorTo = (getEl) => () => {
+      const el = getEl();
+      const r = el?.isConnected ? el.getBoundingClientRect() : null;
+      if (!r) return { px, py: clampPy(panelRect.top + panelRect.height * 0.4) };
+      return { px, py: clampPy(r.top + Math.min(58, r.height * 0.5)) };
+    };
+    const section = (re) => sectionByTitle(panel, re);
+    const scrollTopFor = (node, fallback) => {
+      if (node) return sectionScrollTop(panel, node) - 8;
+      return Math.max(0, panel.scrollHeight - panel.clientHeight) * fallback;
+    };
+
+    const titleEl = panel.querySelector(".mol-title");
+    const structSec = section(/结构式/);
+    const structSummary = panel.querySelector("#smilesDetails summary");
+    const structSlot = panel.querySelector("#structureSlot");
+    const classSec = section(/化学分类/);
+    const classPath = panel.querySelector(".class-path");
+    const usageSec = section(/特性与用途/);
+    const featureLi = panel.querySelector(".usage-section .feature-list li");
+    const sourceSec = section(/来源与生态/);
+    const famRow = sourceSec
+      ? Array.from(sourceSec.querySelectorAll(".meta-row")).find((r) =>
+          /所属科/.test(r.textContent || "")
+        ) || sourceSec.querySelector(".meta-row")
+      : null;
+    const dataSec = section(/数据来源/);
+    const dataLink = dataSec?.querySelector("a") || dataSec?.querySelector("p");
+    const relatedSec = section(/继续探索/);
+
+    const rawName = String(sel.nameZh || "").replace(/\s+/g, " ").trim();
+    const layer = layerLabel(sel.layer) || sel.layer || "";
+    // 字幕里不截断来源物种：名字再长也完整念出来
+    const org = String(sel.organismZh || "").replace(/\s+/g, " ").trim();
+    const ci = classInfoFor(meta);
+    // 很多分子的 nameZh 是很长的 IUPAC 名，字幕里用中文类别名代替
+    const name =
+      rawName && rawName.length <= 20
+        ? rawName
+        : ci?.zh && ci.zh !== "天然产物"
+        ? ci.zh
+        : org || "这颗分子";
+    const np = meta?.npclass?.length
+      ? meta.npclass.slice(-2).join(" › ")
+      : ci?.zh || "";
+    const fam = meta?.family || "";
+    const famZh = familyInfoFor(fam)?.zh || fam;
+    const doi = meta?.doi || "";
+
+    const pBits = [];
+    if (meta?.xlogp != null) pBits.push(`XLogP ${Number(meta.xlogp).toFixed(1)}`);
+    if (meta?.tpsa != null) pBits.push(`TPSA ${Math.round(meta.tpsa)}`);
+    if (meta?.hbd != null && meta?.hba != null)
+      pBits.push(`氢键供体/受体 ${meta.hbd}/${meta.hba}`);
+    if (meta?.rings != null) pBits.push(`${meta.rings} 个环`);
+
+    let structOpen = !!structSummary?.closest("details")?.open;
+    const openStructure = () => {
+      const d = structSummary?.closest("details");
+      if (!d) return false;
+      companionTapFx(structSummary);
+      if (!d.open) {
+        d.open = true;
+        structOpen = true;
+      }
+      return true;
+    };
+
+    const tapActions = [
+      () => companionTapFx(titleEl),
+      () => {
+        if (!openStructure()) companionTapFx(structSec);
+      },
+      null,
+      () => companionTapFx(classPath || classSec),
+      () => companionTapFx(famRow || sourceSec),
+      () => companionTapFx(featureLi || usageSec),
+      () => companionTapFx(dataLink || dataSec),
+      () => companionTapFx(relatedSec || dataSec),
+    ];
+
+    companion.startGuide(
+      [
+        {
+          anchor: anchorTo(() => panel.querySelector(".mol-title")),
+          scale: 0.62,
+          duration: 3.8,
+          gesture: "wave",
+          expression: "happy",
+          tapAfter: 1.1,
+          text: `来认识一下${name}。${
+            org ? `它来自 ${org}` : "来源物种还在整理"
+          }${layer ? `，位于${layer}` : ""}。`,
+        },
+        {
+          anchor: anchorTo(() => structSummary || structSec),
+          scale: 0.62,
+          duration: 6.4,
+          gesture: "point",
+          expression: "curious",
+          tapAfter: 1.1,
+          text: structSummary
+            ? structOpen
+              ? "结构式已经展开了，看右边的骨架：每个环、每个取代基都在这里。"
+              : "先看骨架——我帮你把结构式展开，稍等一下下。"
+            : "这份 LOTUS 快照里没有 SMILES，结构式暂时画不出来，只能先看身份和来源。",
+        },
+        {
+          anchor: anchorTo(() => structSlot || structSummary || structSec),
+          scale: 0.62,
+          duration: 2.8,
+          gesture: "point",
+          expression: "happy",
+          text: structSummary
+            ? `看，骨架出来了${meta?.formula ? `：${meta.formula}` : ""}${
+                meta?.rings != null ? `，一共 ${meta.rings} 个环` : ""
+              }。碳链和环系一眼就能看出它的亲缘。`
+            : "先记住它的名字和来源，结构数据补上后再回来看。",
+        },
+        {
+          anchor: anchorTo(() => classPath || classSec),
+          scale: 0.62,
+          duration: 4.2,
+          gesture: "point",
+          expression: "curious",
+          tapAfter: 1.2,
+          text: np
+            ? `再看分类：它属于 ${np}${ci?.zh && ci.zh !== "天然产物" ? `（${ci.zh}）` : ""}。`
+            : "LOTUS 没给它更细的化学分类，先从来源和层位理解它。",
+        },
+        {
+          anchor: anchorTo(() => famRow || sourceSec),
+          scale: 0.62,
+          duration: 4.2,
+          gesture: "point",
+          expression: "curious",
+          tapAfter: 1.1,
+          text: `来源与生态：${org ? `${org}` : "来源物种"}${
+            famZh ? ` 属于 ${famZh}` : ""
+          }。${ecologyText(sel.kingdom, sel.layer)}`,
+        },
+        {
+          anchor: anchorTo(() => featureLi || usageSec),
+          scale: 0.62,
+          duration: 4.8,
+          gesture: "point",
+          expression: "curious",
+          tapAfter: 1.2,
+          text: pBits.length
+            ? `性质上：${pBits.join("，")}。这些数字决定它更亲水还是更容易穿过膜。`
+            : "下面是这一类结构常被关注的方向；具体活性还得看实验和文献。",
+        },
+        {
+          anchor: anchorTo(() => dataLink || dataSec),
+          scale: 0.62,
+          duration: 4.2,
+          gesture: "point",
+          expression: "curious",
+          tapAfter: 1.1,
+          text: `出处都在这儿：LOTUS 快照${doi ? `，文献 DOI ${doi}` : ""}${
+            meta?.cid != null ? `，PubChem CID ${meta.cid}` : ""
+          }。每个数字都能追溯回去。`,
+        },
+        {
+          anchor: anchorTo(() => relatedSec || dataSec),
+          scale: 0.62,
+          duration: 3.2,
+          gesture: "wave",
+          expression: "happy",
+          text: "介绍完啦。想继续的话，可以让我快速分析，或者看看它的同类分子。",
+        },
+      ],
+      {
+        place: "right",
+        onStep: (i, step) => {
+          if (i === 0) guideScrollTo(0, 520);
+          else if (i <= 2) guideScrollTo(scrollTopFor(structSec, 0), 780);
+          else if (i === 3) guideScrollTo(scrollTopFor(classSec, 0.3), 780);
+          else if (i === 4) guideScrollTo(scrollTopFor(sourceSec, 0.6), 780);
+          else if (i === 5) guideScrollTo(scrollTopFor(usageSec, 0.75), 780);
+          else if (i === 6) guideScrollTo(scrollTopFor(dataSec, 1), 780);
+          else if (i === 7)
+            guideScrollTo(scrollTopFor(relatedSec || dataSec, 1), 700);
+        },
+        onTap: (i) => tapActions[i]?.(),
+      }
+    );
+  }
+
   return {
     /** 加载页完全退场后再启动「泥土→根→干→冠」的生长入场 */
     startIntro() {
@@ -5112,6 +6247,27 @@ export function mountTreeScene(rootEl) {
       introPaused = false;
       introT0 = -1;
       leafNext = 5.5;
+    },
+    startCompanionTour,
+    startCompanionNarration,
+    startCompanionReveal,
+    startRandomCompanionNarration,
+    /** 隔空手势用：屏幕坐标拾取星点/连线，复用鼠标拾取规则 */
+    pickAt(mx, my) {
+      return pickForPointer(mx, my, true);
+    },
+    /** 隔空手势用：把模拟操作视为真实交互，重置 idle 计时避免误入待机 */
+    markActive() {
+      lastInteraction = performance.now();
+      document.body.classList.remove("idle");
+    },
+    /** 隔空手势用：连续缩放（factor<1 靠近/放大，>1 拉远/缩小），复用滚轮缩放的 clamp */
+    zoomBy(factor) {
+      cancelFlyRestoreAuto();
+      cam.distTarget = Math.max(
+        DIST_MIN,
+        Math.min(DIST_MAX, cam.distTarget * factor)
+      );
     },
     focusView(preset) {
       const scale = WORLD_SCALE * TREE_VOLUME;
@@ -5148,6 +6304,9 @@ export function mountTreeScene(rootEl) {
         fy: cam.fy,
         fz: cam.fz,
       };
+    },
+    getSelected() {
+      return selectedPoint();
     },
     getNearby(limit = 6) {
       const filters = getState();

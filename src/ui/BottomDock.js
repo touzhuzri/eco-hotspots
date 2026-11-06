@@ -26,7 +26,7 @@ function layerCounts() {
   return counts;
 }
 
-export function mountBottomDock(el, { scene, onExplore, onHelp }) {
+export function mountBottomDock(el, { scene, onExplore, onHelp, onHand }) {
   const counts = layerCounts();
   const term = currentSolarTerm();
 
@@ -51,6 +51,7 @@ export function mountBottomDock(el, { scene, onExplore, onHelp }) {
       <span class="dock-term-dot" aria-hidden="true"></span>${term.name}
       <em>${term.start}–${term.end}</em>
     </div>
+    <button type="button" class="dock-btn dock-hand" id="dockHand" title="隔空手势：摄像头 opt-in，画面仅本机处理">✋ 隔空</button>
     <button type="button" class="dock-help" id="dockHelp" title="使用帮助">?</button>
   `;
 
@@ -70,6 +71,10 @@ export function mountBottomDock(el, { scene, onExplore, onHelp }) {
     }
     if (btn.id === "dockHelp") {
       onHelp?.();
+      return;
+    }
+    if (btn.id === "dockHand") {
+      onHand?.();
       return;
     }
     if (btn.dataset.layer != null) {

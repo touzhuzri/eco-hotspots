@@ -16,6 +16,7 @@ const PORT = Number(process.env.SITE_PORT || process.env.PORT || 5173);
 const HOST = process.env.HOST || "0.0.0.0";
 const CLAIM_PROXY =
   process.env.CLAIM_PROXY || "http://127.0.0.1:8788";
+const AI_PROXY = process.env.AI_PROXY || "http://127.0.0.1:8790";
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -47,6 +48,7 @@ const BLOCKED = [
   "deploy",
   "pipeline",
   "scratch",
+  "ai", // 含 .env（API Key）与服务端源码，不能当静态文件暴露
   "data/raw",
   "claims.jsonl",
 ];
@@ -66,11 +68,13 @@ function send(res, code, text) {
   res.end(text);
 }
 
-/** 同源 /api → 内部领养服务；这样部署时只需要暴露一个端口 */
+/** 同源 /api → 内部服务：/api/ai 走 AI 代理，其余走领养服务 */
 function proxyApi(req, res, urlObj) {
+  const isAi =
+    urlObj.pathname === "/api/ai" || urlObj.pathname.startsWith("/api/ai/");
   let target;
   try {
-    target = new URL(CLAIM_PROXY);
+    target = new URL(isAi ? AI_PROXY : CLAIM_PROXY);
   } catch (_) {
     return send(res, 502, "Bad Gateway");
   }
@@ -89,8 +93,15 @@ function proxyApi(req, res, urlObj) {
     }
   );
   preq.on("error", () => {
-    if (!res.headersSent) send(res, 502, "Claim Service Unavailable");
-    else res.destroy();
+    if (!res.headersSent) {
+      send(
+        res,
+        502,
+        isAi
+          ? "AI Service Unavailable（请先运行 node ai/server.mjs）"
+          : "Claim Service Unavailable"
+      );
+    } else res.destroy();
   });
   req.pipe(preq);
 }
@@ -176,6 +187,7 @@ server.listen(PORT, HOST, () => {
   console.log(`[site] serving ${ROOT}`);
   console.log(`[site] listening http://${HOST}:${PORT}`);
   console.log(`[site] /api -> ${CLAIM_PROXY}`);
+  console.log(`[site] /api/ai -> ${AI_PROXY}`);
 });
 
 function shutdown(sig) {

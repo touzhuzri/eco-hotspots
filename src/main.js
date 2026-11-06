@@ -9,11 +9,29 @@ import { mountBootFlora } from "./ui/bootFlora.js";
 import { mountExploreRail } from "./ui/ExploreRail.js";
 import { mountBottomDock } from "./ui/BottomDock.js";
 import { mountIdleIntro } from "./ui/IdleIntro.js";
+import { mountHandGestures } from "./ui/HandGestures.js";
+import { mountAiDock } from "./ui/AiDock.js";
+import { mountAiSettings } from "./ui/AiSettings.js";
 import {
   openTour,
   openAbout,
   maybeShowTour,
 } from "./ui/HelpOverlay.js";
+
+/** 大屏按 1440×900 设计稿等比放大 UI；小屏继续走原有响应式断点 */
+function syncUiScale() {
+  const mobile = window.matchMedia(
+    "(max-width: 900px), (max-height: 520px)"
+  ).matches;
+  const raw = Math.min(window.innerWidth / 1440, window.innerHeight / 900);
+  const scale = mobile ? 1 : Math.min(2, Math.max(1, raw));
+  document.documentElement.style.setProperty(
+    "--ui-scale",
+    scale.toFixed(3)
+  );
+}
+syncUiScale();
+window.addEventListener("resize", syncUiScale);
 
 /** 竖屏手机提示横屏；尽量在首次手势后尝试锁定横屏 */
 function setupOrientationGate() {
@@ -199,6 +217,7 @@ async function boot() {
   // 让一帧绘制进度条，再同步建场景（22 万点）
   await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 30)));
   const scene = mountTreeScene(sceneEl);
+  mountAiSettings(document.getElementById("ecoSetPanel"));
   setBoot("正在点亮产物星…", 0.9);
   const filters = mountFilters(filtersEl);
   const detail = mountDetailPanel(detailEl);
@@ -212,14 +231,21 @@ async function boot() {
         onAbout: openAbout,
       })
     : null;
+  const hands = mountHandGestures({ scene });
   if (dockEl) {
     mountBottomDock(dockEl, {
       scene,
       onExplore: () => rail?.toggle(),
       onHelp: () => openTour(),
+      onHand: () => hands.toggle(),
+    });
+    const handBtn = dockEl.querySelector("#dockHand");
+    window.addEventListener("eco:hand-mode", (e) => {
+      handBtn?.classList.toggle("active", !!e.detail?.enabled);
     });
   }
   mountIdleIntro(document.getElementById("idleIntro"));
+  mountAiDock(document.getElementById("aiDock"), { scene });
 
   const s = stats();
   const dsMeta = meta().meta || {};
