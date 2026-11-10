@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 世界树 · 一键运行（本地）
 #
-#   ./run.sh                 启动站点 + 领养服务，并自动打开浏览器
+#   ./run.sh                 启动站点 + 领养服务 + AI 代理，并自动打开浏览器
 #   ./run.sh --no-open       只启动，不打开浏览器
 #   ./run.sh --port 8080     指定端口（等价于 SITE_PORT=8080）
 #   ./run.sh stop|status|restart|daemon

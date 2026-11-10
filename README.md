@@ -46,28 +46,30 @@
 
 ## 本地运行
 
-### 方式 A：完整功能（含领养）
+### 方式 A：完整功能（站点 + 领养 + AI）
 
-需要 Node.js 18+（推荐 22）。
+需要 Node.js 18+（推荐 22；AI 代理要求 20.12+）。
 
 ```bash
 ./start.sh daemon
 # 站点      http://127.0.0.1:5173/
+# AI API    http://127.0.0.1:5173/api/ai/health
 # 领养 API  http://127.0.0.1:5173/api/claim/health
 ./start.sh status
 ./start.sh stop
 ```
 
-`start.sh` 会同时启动静态站和内部领养服务，并自动复用已运行的服务。
+`start.sh` 会同时启动静态站、内部领养服务和 AI 代理，并自动复用已运行的服务。Windows 使用 `start-windows.cmd`，同样会启动三个服务。
+
+只想单独调试 AI：`./start-ai.sh`（Windows 用 `start-ai.cmd`）；暂时不启动 AI：`AI_DISABLED=1 ./start.sh`。
 
 ### AI 分析（可选，Step 1）
 
 1. 在 `ai/.env` 填写 GLM / DeepSeek / MiMo 的 API Key（也可以启动后在右上角 ⚙ → AI / API 里填）
-2. 启动 AI 代理：`./start-ai.sh`（Windows 用 `start-ai.cmd`）
-3. 站点仍用 `./start.sh daemon` 启动；站点会把 `/api/ai` 代理到本机 `8790`
-4. 打开页面底部 AI 分析坞，或右上角 ⚙ 配置服务商 / Base URL / 模型 / Key；同一面板的「多模态 / 视觉模型」可单独配置识图模型，并点「测试识图」验证
-5. 知识库分两层：内置的 **LOTUS 数据集卡片 + 开发参考论文 + 权威网站**（`data/kb-seed/`，不可删除），以及你上传的 PDF / Word / CSV；回答会自动检索并标注《文件名》第 N 段、论文 DOI 或网站 URL
-6. 识图：在 AI 坞点「识图」上传结构式、图表或照片，视觉模型先描述图片，再交给主模型调用 LOTUS 工具核对。可在右上角 ⚙ →「多模态 / 视觉模型」里单独配置并测试，纯文本模型无法识图
+2. 直接运行 `./start.sh daemon`（Windows 用 `start-windows.cmd`），AI 代理会一并启动；站点把 `/api/ai` 代理到本机 `8790`
+3. 打开页面底部 AI 分析坞，或右上角 ⚙ 配置服务商 / Base URL / 模型 / Key；同一面板的「多模态 / 视觉模型」可单独配置识图模型，并点「测试识图」验证
+4. 知识库分两层：内置的 **LOTUS 数据集卡片 + 开发参考论文 + 权威网站**（`data/kb-seed/`，不可删除），以及你上传的 PDF / Word / CSV；回答会自动检索并标注《文件名》第 N 段、论文 DOI 或网站 URL
+5. 识图：在 AI 坞点「识图」上传结构式、图表或照片，视觉模型先描述图片，再交给主模型调用 LOTUS 工具核对。可在右上角 ⚙ →「多模态 / 视觉模型」里单独配置并测试，纯文本模型无法识图
 
 AI 代理没有 npm 依赖；相似分子索引已生成在 `data/similarity/`，可用 `pipeline/build-molecule-similarity.py` 重建。内置知识库种子在 `data/kb-seed/`（随仓库提交），运行时正文和向量存在本机 `data/kb/`，已在 `.gitignore` 中忽略。详见 [`ai/README.md`](ai/README.md) 和 [`data/kb-seed/README.md`](data/kb-seed/README.md)。
 
@@ -210,7 +212,7 @@ data/molecules3d/           LOTUS 3D 构象分片（RDKit ETKDG）
 vendor/rdkit/               RDKit.js 与 WASM（BSD）
 deploy/                     静态站、领养服务、部署说明
 pipeline/                   数据构建脚本
-start.sh                    一键启动（含领养）
+start.sh                    一键启动（站点 + 领养 + AI）
 ```
 
 ## 技术栈

@@ -9,13 +9,13 @@
 ## 0. 一页速查
 
 ```text
-项目形态：纯静态前端 + 零依赖 Node 静态服务器 + 零依赖 Node 领养服务
-运行时：Node.js >= 18（推荐 22.14.0）
+项目形态：纯静态前端 + 零依赖 Node 静态服务器 + 零依赖领养服务 + 零依赖 AI 代理
+运行时：Node.js >= 18（推荐 22.14.0；AI 代理要求 20.12+）
 不需要：npm install、Python、数据库、Redis、外网 CDN
 公开端口：一个（默认 5173，面板常用 PORT/SITE_PORT，例如 41018）
-内部端口：8788（领养服务，只绑定 127.0.0.1）
+内部端口：8788（领养服务）、8790（AI 代理），都只绑定 127.0.0.1
 入口：http://服务器IP:端口/
-健康检查：http://服务器IP:端口/api/claim/health
+健康检查：/api/claim/health、/api/ai/health
 ```
 
 最小启动：
@@ -28,7 +28,7 @@ chmod +x start.sh
 ./start.sh
 ```
 
-只放行站点端口；**不要**把 8788 暴露到公网。
+只放行站点端口；**不要**把 8788 / 8790 暴露到公网。
 
 ---
 
@@ -199,11 +199,11 @@ cat /tmp/eco-preflight.txt
 学校 Nginx / WAF / TLS
   ↓ 127.0.0.1:41018
 deploy/site-server.mjs
-  ↓ 127.0.0.1:8788
-deploy/claim-server.mjs
+  ├─ 127.0.0.1:8788 → deploy/claim-server.mjs
+  └─ 127.0.0.1:8790 → ai/server.mjs
 ```
 
-- 公网只开 443；41018/8788 都只在本机。
+- 公网只开 443；41018/8788/8790 都只在本机。
 - 站点必须放在域名根路径，否则 `/vendor/...` 绝对路径会失效。
 - 如果学校只给子路径，告诉技术支持，需要改 import map、favicon 和静态资源路径。
 
@@ -246,10 +246,10 @@ server {
 
 ```text
 项目：天然产物世界树（课程/科普展示）
-类型：静态 WebGL 前端 + 两个零依赖 Node 服务
-运行环境：Linux x86_64/arm64，Node.js >= 18（推荐 22.14.0）
+类型：静态 WebGL 前端 + 三个零依赖 Node 服务（站点、领养、AI）
+运行环境：Linux x86_64/arm64，Node.js >= 18（推荐 22.14.0；AI 代理要求 20.12+）
 资源：约 1GB 磁盘、512MB–1GB 内存、1 核 CPU；不需要数据库、不需要 GPU
-端口：仅需公网 HTTPS 443；内部 Node 监听 127.0.0.1:41018 和 127.0.0.1:8788
+端口：仅需公网 HTTPS 443；内部 Node 监听 127.0.0.1:41018、8788 和 8790
 网络：运行时不访问外网/CDN；Three.js/RDKit/数据全部随包部署
 反向代理：Nginx 将 443 转到 127.0.0.1:41018，站点需部署在域名根路径
 MIME：需要 application/wasm 和 application/gzip
@@ -538,7 +538,7 @@ CLAIM_FILE=/var/lib/eco-hotspots/claims.jsonl \
 ./start.sh
 ```
 
-如果没有 Bash，或者 `start.sh` 因环境缺失不能运行，手动启动两个 Node 服务：
+如果没有 Bash，或者 `start.sh` 因环境缺失不能运行，手动启动三个 Node 服务（站点、领养、AI）：
 
 ```bash
 cd /opt/shijieshu
@@ -549,9 +549,14 @@ PORT=8788 \
 CLAIM_FILE=/var/lib/eco-hotspots/claims.jsonl \
 node deploy/claim-server.mjs >>logs/claim.log 2>&1 &
 
+AI_PORT=8790 \
+AI_HOST=127.0.0.1 \
+node ai/server.mjs >>logs/ai.log 2>&1 &
+
 HOST=0.0.0.0 \
 SITE_PORT=41018 \
 CLAIM_PROXY=http://127.0.0.1:8788 \
+AI_PROXY=http://127.0.0.1:8790 \
 node deploy/site-server.mjs >>logs/site.log 2>&1 &
 ```
 
@@ -612,7 +617,7 @@ deploy/windows-launcher.mjs
 powershell -NoProfile -ExecutionPolicy Bypass -File .\install-windows.ps1
 ```
 
-它会优先使用系统 Node 18+；没有或版本太低时，解压包内 Node 到 `.runtime\node`，然后启动两个服务。
+它会优先使用系统 Node 18+；没有或版本太低时，解压包内 Node 到 `.runtime\node`，然后启动站点、领养和 AI 三个服务。
 
 也可以直接运行：
 
@@ -661,6 +666,9 @@ New-NetFirewallRule -DisplayName "Eco Hotspots 41018" -Direction Inbound -Protoc
 | `CLAIM_PORT` | `8788` | 内部领养服务端口 |
 | `CLAIM_HOST` | `127.0.0.1` | 领养服务绑定地址 |
 | `CLAIM_FILE` | `./claims.jsonl` | 领养账本路径 |
+| `AI_PORT` | `8790` | 内部 AI 代理端口 |
+| `AI_HOST` | `127.0.0.1` | AI 代理绑定地址 |
+| `AI_DISABLED` | 未设置 | 设为 `1` 时跳过 AI 服务 |
 | `ALLOW_ORIGIN` | `*` | 领养服务 CORS |
 
 只暴露站点端口。若 Nginx 反代：
@@ -790,6 +798,7 @@ CLAIM_FILE=/var/lib/eco-hotspots/claims.jsonl SITE_PORT=41018 ./start.sh
 | 2D 结构不显示 | `vendor/rdkit/`、WASM MIME、Console |
 | 3D 不显示 | `data/molecules3d/` 分片；缺失时应该回退 2D |
 | 领养不可用 | 8788、`/api` 代理、`logs/claim.log`、facets |
+| AI 不可用 | 8790、`/api/ai` 代理、`logs/ai.log`、`ai/.env` 或设置面板 |
 | 复制按钮失败 | 是否 HTTPS/localhost；更新 `DetailPanel.js`；HTTP 有降级 |
 | 服务反复停止 | 面板是否用前台；Node 是否存在；日志 |
 | 磁盘满 | `du -sh logs claims.jsonl data` |
@@ -850,7 +859,7 @@ sed -i 's/\r$//' start.sh
 chmod +x start.sh
 ```
 
-如果系统没有 bash：按 5.7 手动启动两个 Node 服务。
+如果系统没有 bash：按 5.7 手动启动三个 Node 服务（站点、领养、AI）。
 
 #### 面板显示“服务器已停止”
 
@@ -1007,7 +1016,7 @@ curl -I http://127.0.0.1:41018/
 
 ## 11. 安全与运维
 
-- 只公开站点端口；8788 只绑定本机。
+- 只公开站点端口；8788 / 8790 只绑定本机。
 - 运行用户最小权限；`claims.jsonl` 600。
 - 建议 HTTPS；HTTP 下复制功能已有降级。
 - 静态服务器已屏蔽 `.git`、`.run`、`logs`、`deploy`、`pipeline`、`data/raw`、`claims.jsonl`。
@@ -1082,10 +1091,11 @@ sha256sum -c SHA256SUMS.txt
 ./start.sh status
 
 # 换端口
-SITE_PORT=41018 CLAIM_PORT=8788 ./start.sh
+SITE_PORT=41018 CLAIM_PORT=8788 AI_PORT=8790 ./start.sh
 
 # 手动启动（无 bash/start.sh 时）
 node deploy/claim-server.mjs
+node ai/server.mjs
 node deploy/site-server.mjs
 
 # 健康
