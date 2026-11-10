@@ -143,6 +143,44 @@ AI_KB_CHUNK_OVERLAP=80
 AI_KB_LOCAL_DIM=768
 ```
 
+## 5.2 多模态识图
+
+架构是“视觉模型看图，文本模型推理”：
+
+1. 前端上传 PNG / JPEG / WebP / GIF（单张 ≤ 8MB，最多 2 张），以 base64 data URL 提交；
+2. 服务端调用视觉模型，只让它描述图片中确实可见的内容（主体、文字、结构式骨架/官能团、图表坐标轴与趋势），并明确要求“不确定就说不确定”；
+3. 描述作为【图片识别结果（视觉模型，仅供参考）】附在用户消息里，再交给主模型做推理；
+4. 主模型可以继续调用 `query_molecules` / `find_similar` / `explain` 核对，回答里区分“图片看到的内容”和“LOTUS 核实的内容”。
+
+配置有两种方式（任选其一）：
+
+1. 页面右上角 **⚙ 场景设置 → 多模态 / 视觉模型**：填视觉 Base URL、视觉模型、视觉 API Key，点 **测试识图** 会保存配置并发一张测试图验证；Key 只写入本机 `.run/ai-config.json`，不回传前端。
+2. 在 `ai/.env` 里配置：
+
+```env
+# GLM-4V
+AI_VISION_MODEL=glm-4v-plus
+AI_VISION_BASE_URL=https://open.bigmodel.cn/api/paas/v4
+AI_VISION_API_KEY=你的视觉服务 Key
+
+# 本地 Ollama（OpenAI 兼容）
+# AI_VISION_BASE_URL=http://127.0.0.1:11434/v1
+# AI_VISION_MODEL=qwen2.5vl
+# AI_VISION_API_KEY=ollama
+```
+
+`AI_VISION_BASE_URL` 不填时复用对话服务商；`AI_VISION_API_KEY` 不填时用 `AI_API_KEY`。纯文本模型（当前服务商的 `deepseek-v4-pro`）看不到图片，服务端会直接返回“请配置视觉模型”的提示，而不是把图片当文字硬答。
+
+探测接口：
+
+```text
+POST /api/ai/vision-test
+{ "dataUrl": "data:image/png;base64,..." }
+→ { "ok": true, "model": "glm-4v-plus", "sample": "..." }
+```
+
+`/api/ai/health` 里的 `vision` / `visionReady` 会显示当前视觉模型和是否就绪。
+
 ## 6. 当前 Step 1 能力
 
 - `/api/ai/health`：服务状态、是否配置 Key、相似索引是否加载
@@ -150,6 +188,8 @@ AI_KB_LOCAL_DIM=768
 - `/api/ai/test`：用当前配置发一条最小请求
 - `/api/ai/chat`：SSE 流式对话 + 工具调用 + 附件正文
 - `/api/ai/file`：上传并解析常见文档
+- `/api/ai/vision-test`：用一张图片探测视觉模型是否可用
+- `/api/ai/models`：列出当前服务商的模型 ID
 - `/api/ai/kb` GET/POST/DELETE：知识库列表、上传、删除
 - `/api/ai/kb/search?q=...`：直接测试知识库召回
 - `/api/ai/similar?inchikey=...`：直接测试相似分子

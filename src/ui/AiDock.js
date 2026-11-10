@@ -67,6 +67,11 @@ const INTRO_OPTIONS = [
     kb: true,
     title: "上传 PDF / Word / CSV，之后回答会自动检索并标注出处",
   },
+  {
+    label: "上传图片识图",
+    image: true,
+    title: "结构式、论文图表、实验照片都可以先识别再核对",
+  },
 ];
 
 const CAPABILITIES = [
@@ -82,6 +87,11 @@ const CAPABILITIES = [
     label: "结构相似分子",
     prompt: "找和当前选中分子相似的分子",
     title: "先在世界树里选中一颗分子",
+  },
+  {
+    label: "识图",
+    image: true,
+    title: "上传结构式、论文图表或实验照片，先识别再查 LOTUS",
   },
   {
     label: "场景导览",
@@ -133,13 +143,15 @@ export function mountAiDock(el, { scene } = {}) {
               ${CAPABILITIES.map(
                 (c) =>
                   `<button type="button" ${
-                    c.tour
-                      ? `data-ai-tour="1"`
-                      : c.kb
-                        ? `data-ai-kb="1"`
-                        : c.random
-                          ? `data-ai-random="1"`
-                          : `data-ai-suggest="${esc(c.prompt)}"`
+                    c.image
+                      ? `data-ai-image="1"`
+                      : c.tour
+                        ? `data-ai-tour="1"`
+                        : c.kb
+                          ? `data-ai-kb="1"`
+                          : c.random
+                            ? `data-ai-random="1"`
+                            : `data-ai-suggest="${esc(c.prompt)}"`
                   }${c.title ? ` title="${esc(c.title)}"` : ""}>${esc(
                     c.label
                   )}</button>`
@@ -150,13 +162,15 @@ export function mountAiDock(el, { scene } = {}) {
               ${INTRO_OPTIONS.map(
                 (o) =>
                   `<button type="button" ${
-                    o.tour
-                      ? `data-ai-tour="1"`
-                      : o.kb
-                        ? `data-ai-kb="1"`
-                        : o.random
-                          ? `data-ai-random="1"`
-                          : `data-ai-suggest="${esc(o.prompt)}"`
+                    o.image
+                      ? `data-ai-image="1"`
+                      : o.tour
+                        ? `data-ai-tour="1"`
+                        : o.kb
+                          ? `data-ai-kb="1"`
+                          : o.random
+                            ? `data-ai-random="1"`
+                            : `data-ai-suggest="${esc(o.prompt)}"`
                   }${o.title ? ` title="${esc(o.title)}"` : ""}>${esc(
                     o.label
                   )}</button>`
@@ -184,7 +198,7 @@ export function mountAiDock(el, { scene } = {}) {
         <button type="submit" class="ai-dock-send" id="aiSend" title="发送">↑</button>
       </form>
 
-      <input type="file" id="aiFile" accept=".pdf,.docx,.xlsx,.pptx,.csv,.tsv,.json,.txt,.md,.markdown,.html,.htm,.xml,.yaml,.yml,.log,.smi,.smiles,text/*,application/pdf,application/json" hidden />
+      <input type="file" id="aiFile" accept=".png,.jpg,.jpeg,.webp,.gif,image/png,image/jpeg,image/webp,image/gif,.pdf,.docx,.xlsx,.pptx,.csv,.tsv,.json,.txt,.md,.markdown,.html,.htm,.xml,.yaml,.yml,.log,.smi,.smiles,text/*,application/pdf,application/json" hidden />
       <input type="file" id="aiKbFile" accept=".pdf,.docx,.xlsx,.pptx,.csv,.tsv,.json,.txt,.md,.markdown,.html,.htm,.xml,.yaml,.yml,.log,.smi,.smiles,text/*,application/pdf,application/json" hidden />
     </div>`;
 
@@ -321,8 +335,30 @@ export function mountAiDock(el, { scene } = {}) {
     applyGeom(10, 10, compact ? 10 : 16);
   }
 
+  function isImageFile(file) {
+    return !!file?.type && /^image\/(png|jpe?g|webp|gif)$/i.test(file.type);
+  }
+
   /** 选文件后立刻送到 AI 服务读文字，状态显示在 chip 上 */
   function parseFile(file) {
+    if (isImageFile(file)) {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onerror = () =>
+          resolve({ ok: false, name: file.name, error: "本地读取失败" });
+        reader.onload = () =>
+          resolve({
+            ok: true,
+            kind: "image",
+            name: file.name,
+            type: file.type,
+            dataUrl: String(reader.result || ""),
+            chars: 0,
+            size: file.size,
+          });
+        reader.readAsDataURL(file);
+      });
+    }
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onerror = () =>
@@ -362,14 +398,17 @@ export function mountAiDock(el, { scene } = {}) {
   function showFile(file) {
     if (!file) return;
     markAiActive();
-    input.placeholder = "问点什么：例如「总结这份文件的要点」";
+    const image = isImageFile(file);
+    input.placeholder = image
+      ? "问点什么：例如「这是什么分子？」"
+      : "问点什么：例如「总结这份文件的要点」";
     const seq = ++parseSeq;
     currentFile = file;
     currentParsed = null;
     parsePromise = null;
     attach.hidden = false;
     attach.innerHTML = `
-      <span class="ai-file-icon">📄</span>
+      <span class="ai-file-icon">${image ? "🖼" : "📄"}</span>
       <span class="ai-file-name">${esc(file.name)}</span>
       <em class="ai-file-status">读取中…</em>
       <button type="button" class="ai-file-remove" id="aiFileRemove" title="移除">×</button>`;
@@ -392,10 +431,18 @@ export function mountAiDock(el, { scene } = {}) {
         status.classList.toggle("is-ok", !!res.ok);
         status.classList.toggle("is-error", !res.ok);
         status.textContent = res.ok
-          ? `已读取 ${Number(res.chars || 0).toLocaleString("zh-CN")} 字${
-              res.truncated ? "（已截断）" : ""
-            }`
+          ? res.kind === "image"
+            ? `图片 · ${humanSize(file.size)}`
+            : `已读取 ${Number(res.chars || 0).toLocaleString("zh-CN")} 字${
+                res.truncated ? "（已截断）" : ""
+              }`
           : res.error || "未能读取";
+      }
+      if (res.ok && res.kind === "image" && res.dataUrl) {
+        const icon = attach.querySelector(".ai-file-icon");
+        if (icon) {
+          icon.outerHTML = `<img class="ai-file-thumb" src="${res.dataUrl}" alt="">`;
+        }
       }
       return res;
     });
@@ -404,8 +451,15 @@ export function mountAiDock(el, { scene } = {}) {
   function addUser(text, file, parsed) {
     const div = document.createElement("div");
     div.className = "ai-msg ai-msg-user";
-    const fileLine =
-      file
+    const image =
+      parsed?.kind === "image" && /^data:image\//i.test(parsed.dataUrl || "");
+    const fileLine = image
+      ? `<img class="ai-msg-image" src="${parsed.dataUrl}" alt="${esc(
+          file.name
+        )}"><div class="ai-msg-file">🖼 ${esc(file.name)} · ${humanSize(
+          file.size
+        )}</div>`
+      : file
         ? `<div class="ai-msg-file">📄 ${esc(file.name)}${
             parsed?.ok
               ? ` · 已读取 ${Number(parsed.chars || 0).toLocaleString("zh-CN")} 字`
@@ -812,7 +866,15 @@ export function mountAiDock(el, { scene } = {}) {
           }
         : {};
       const payload = { messages: chatHistory, context };
-      if (file && parsed?.ok && parsed.text) {
+      if (file && parsed?.kind === "image" && parsed.dataUrl) {
+        payload.images = [
+          {
+            name: parsed.name || file.name,
+            type: parsed.type || file.type,
+            dataUrl: parsed.dataUrl,
+          },
+        ];
+      } else if (file && parsed?.ok && parsed.text) {
         payload.attachments = [
           {
             name: parsed.name || file.name,
@@ -944,19 +1006,25 @@ export function mountAiDock(el, { scene } = {}) {
       if (suggestions) suggestions.remove();
       clearPending();
       // 首条能力介绍保留在顶部，方便随时回来再看或再次选择
-      const userText = text || `请阅读并分析这个文件：${file.name}`;
+      const image = parsed?.kind === "image";
+      const userText =
+        text || (image ? "请分析这张图片。" : `请阅读并分析这个文件：${file.name}`);
       addUser(userText, file, parsed);
       chatHistory.push({
         role: "user",
         content:
           userText +
           (file
-            ? `\n[附件] ${file.name} (${humanSize(file.size)})${
-                parsed?.ok
-                  ? ` · 已读取 ${parsed.chars} 字`
-                  : parsed?.error
-                    ? ` · ${parsed.error}`
-                    : ""
+            ? `\n[${image ? "图片" : "附件"}] ${file.name} (${humanSize(
+                file.size
+              )})${
+                image
+                  ? ""
+                  : parsed?.ok
+                    ? ` · 已读取 ${parsed.chars} 字`
+                    : parsed?.error
+                      ? ` · ${parsed.error}`
+                      : ""
               }`
             : ""),
       });
@@ -1114,6 +1182,12 @@ export function mountAiDock(el, { scene } = {}) {
 
   // 建议 chips
   el.addEventListener("click", (e) => {
+    const imageChip = e.target.closest("[data-ai-image]");
+    if (imageChip) {
+      setOpen(true);
+      fileInput.click();
+      return;
+    }
     const kbChip = e.target.closest("[data-ai-kb]");
     if (kbChip) {
       kbPanel.hidden = false;

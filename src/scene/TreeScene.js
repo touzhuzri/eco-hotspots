@@ -594,6 +594,24 @@ export function mountTreeScene(rootEl) {
         </div>
         <p class="ss-ai-status" id="ssAiStatus">读取配置中…</p>
       </div>
+      <div class="ss-sep"></div>
+      <div class="ss-title ss-ai-title">多模态 / 视觉模型</div>
+      <div class="ss-ai">
+        <label>视觉 Base URL
+          <input id="ssVisionBase" type="text" spellcheck="false" placeholder="留空复用上面的 Base URL"/>
+        </label>
+        <label>视觉模型
+          <input id="ssVisionModel" type="text" spellcheck="false" placeholder="如 glm-4v-plus / qwen-vl-max"/>
+        </label>
+        <label>视觉 API Key
+          <input id="ssVisionKey" type="password" autocomplete="off" spellcheck="false" placeholder="留空则不修改"/>
+        </label>
+        <div class="ss-ai-actions">
+          <button type="button" id="ssVisionTest">测试识图</button>
+          <button type="button" id="ssVisionClear">清除视觉 Key</button>
+        </div>
+        <p class="ss-ai-status" id="ssVisionStatus">留空表示复用上面的对话服务商</p>
+      </div>
       <button type="button" class="ss-close" id="ssClose">关闭</button>
     </div>
   `;
