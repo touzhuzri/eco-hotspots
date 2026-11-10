@@ -30,14 +30,27 @@ export function mountAiSettings(panel) {
   const saveEl = panel.querySelector("#ssAiSave");
   const testEl = panel.querySelector("#ssAiTest");
   const statusEl = panel.querySelector("#ssAiStatus");
+  const visionBaseEl = panel.querySelector("#ssVisionBase");
+  const visionModelEl = panel.querySelector("#ssVisionModel");
+  const visionKeyEl = panel.querySelector("#ssVisionKey");
+  const visionStatusEl = panel.querySelector("#ssVisionStatus");
+  const visionTestEl = panel.querySelector("#ssVisionTest");
+  const visionClearEl = panel.querySelector("#ssVisionClear");
   if (!providerEl || !baseEl || !modelEl || !keyEl || !statusEl) return null;
 
   let presets = DEFAULTS;
   let hasKey = false;
+  let hasVisionKey = false;
 
   function status(text, kind = "") {
     statusEl.textContent = text;
     statusEl.className = `ss-ai-status${kind ? ` ${kind}` : ""}`;
+  }
+
+  function visionStatus(text, kind = "") {
+    if (!visionStatusEl) return;
+    visionStatusEl.textContent = text;
+    visionStatusEl.className = `ss-ai-status${kind ? ` ${kind}` : ""}`;
   }
 
   function applyConfig(cfg) {
@@ -57,6 +70,23 @@ export function mountAiSettings(panel) {
         : "未配置 API Key；填写后保存，或在 ai/.env 中填写",
       hasKey ? "ok" : ""
     );
+
+    if (visionBaseEl) visionBaseEl.value = cfg.visionBaseURL || "";
+    if (visionModelEl) visionModelEl.value = cfg.visionModel || "";
+    hasVisionKey = !!cfg.hasVisionKey;
+    if (visionKeyEl) {
+      visionKeyEl.value = "";
+      visionKeyEl.placeholder = hasVisionKey
+        ? "已配置，留空不修改"
+        : "填入视觉服务 Key";
+    }
+    if (cfg.visionReady) {
+      visionStatus(`识图已就绪 · ${cfg.visionModel || cfg.model}`, "ok");
+    } else if (cfg.visionModel) {
+      visionStatus("已填视觉模型，但缺少可用的 Key", "err");
+    } else {
+      visionStatus("留空表示复用上面的对话服务商；纯文本模型无法识图", "");
+    }
   }
 
   async function loadConfig() {
@@ -92,6 +122,9 @@ export function mountAiSettings(panel) {
         baseURL: baseEl.value.trim(),
         model: modelEl.value.trim(),
         apiKey: keyEl.value.trim(),
+        visionBaseURL: visionBaseEl?.value.trim() || "",
+        visionModel: visionModelEl?.value.trim() || "",
+        visionApiKey: visionKeyEl?.value.trim() || "",
       }),
     });
     const data = await res.json().catch(() => ({}));
@@ -108,9 +141,10 @@ export function mountAiSettings(panel) {
     status("保存中…");
     try {
       const data = await pushConfig();
+      const vReady = data.config?.visionReady;
       status(
         data.config?.hasKey
-          ? "已保存。API Key 只保存在本机 .run/ai-config.json。"
+          ? `已保存。${vReady ? "识图已就绪" : "识图未就绪"}。API Key 只保存在本机 .run/ai-config.json。`
           : "已保存，但还没有 API Key。",
         "ok"
       );
@@ -146,8 +180,82 @@ export function mountAiSettings(panel) {
     }
   }
 
+  function makeVisionTestImage() {
+    const c = document.createElement("canvas");
+    c.width = 180;
+    c.height = 130;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#0b141c";
+    ctx.fillRect(0, 0, c.width, c.height);
+    ctx.fillStyle = "#7fe0a2";
+    ctx.beginPath();
+    ctx.arc(90, 52, 28, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#eafff0";
+    ctx.font = "16px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("VISION TEST", 90, 106);
+    return c.toDataURL("image/png");
+  }
+
+  async function testVision() {
+    if (!visionTestEl) return;
+    visionTestEl.disabled = true;
+    visionStatus("保存配置并测试识图…");
+    try {
+      await pushConfig();
+      const res = await fetch("/api/ai/vision-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dataUrl: makeVisionTestImage() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      visionStatus(
+        `识图正常 · ${data.model || visionModelEl?.value || ""} · ${String(
+          data.sample || ""
+        ).slice(0, 60)}`,
+        "ok"
+      );
+    } catch (err) {
+      visionStatus(
+        `识图失败：${String(err.message || err).slice(0, 240)}`,
+        "err"
+      );
+    } finally {
+      visionTestEl.disabled = false;
+    }
+  }
+
+  async function clearVisionKey() {
+    if (!window.confirm("清除已保存的视觉 API Key？")) return;
+    try {
+      const res = await fetch("/api/ai/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clearVisionKey: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      applyConfig(data.config);
+      window.dispatchEvent(new Event("eco:ai-config-changed"));
+      visionStatus("已清除视觉 API Key", "");
+    } catch (err) {
+      visionStatus(
+        `清除失败：${String(err.message || err).slice(0, 200)}`,
+        "err"
+      );
+    }
+  }
+
   saveEl.addEventListener("click", save);
   testEl.addEventListener("click", test);
+  visionTestEl?.addEventListener("click", testVision);
+  visionClearEl?.addEventListener("click", clearVisionKey);
   loadConfig();
 
   return { reload: loadConfig };

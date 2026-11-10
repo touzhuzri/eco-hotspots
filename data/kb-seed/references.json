@@ -1,0 +1,141 @@
+{
+  "version": 1,
+  "updatedAt": "2026-11-10",
+  "note": "开发过程参考的论文与权威网站。summary/usage 为项目自写说明，不摘录原文摘要。",
+  "papers": [
+    {
+      "id": "ref-rutz-2022-lotus",
+      "name": "Rutz 2022 LOTUS（eLife）",
+      "title": "The LOTUS initiative for open knowledge management in natural products research",
+      "authors": "Adriano Rutz, Maria Sorokina, Jakub Galgonek, Daniel Mietchen, Egon Willighagen, Arnaud Gaudry 等",
+      "year": 2022,
+      "venue": "eLife",
+      "doi": "10.7554/eLife.70780",
+      "url": "https://doi.org/10.7554/eLife.70780",
+      "usage": "LOTUS 数据库的旗舰论文，说明数据模型、来源追溯、开放许可和引用方式；本项目把它作为第一知识库的依据。",
+      "summary": "介绍 LOTUS 如何把天然产物结构与生物来源（物种、科）关联起来，以开放许可发布并可被机器读取，强调可追溯和可复用。"
+    },
+    {
+      "id": "ref-classyfire-2016",
+      "name": "ClassyFire 2016",
+      "title": "ClassyFire: automated chemical classification with a comprehensive, computable taxonomy",
+      "authors": "Yannick Djoumbou Feunang, Roman Eisner, Craig Knox, Leonid Chepelev, Janna Hastings, Gareth Owen 等",
+      "year": 2016,
+      "venue": "Journal of Cheminformatics",
+      "doi": "10.1186/s13321-016-0174-y",
+      "url": "https://doi.org/10.1186/s13321-016-0174-y",
+      "usage": "解释 LOTUS 的 classyfire 字段和化学分类层级，帮助回答“黄酮/生物碱/萜类”这类分类问题。",
+      "summary": "提出一套可计算、可自动分配的化学本体分类体系，把化合物映射到从大类到子类的层级结构。"
+    },
+    {
+      "id": "ref-npclassifier-2021",
+      "name": "NPClassifier 2021",
+      "title": "NPClassifier: A Deep Neural Network-Based Structural Classification Tool for Natural Products",
+      "authors": "Hyun Woo Kim, Mingxun Wang, Christopher A. Leber, Louis-Félix Nothias 等",
+      "year": 2021,
+      "venue": "Journal of Natural Products",
+      "doi": "10.1021/acs.jnatprod.1c00399",
+      "url": "https://doi.org/10.1021/acs.jnatprod.1c00399",
+      "usage": "解释 LOTUS 的 npclass 字段；回答天然产物类别时用它说明分类来源。",
+      "summary": "面向天然产物的深度学习结构分类方法，输出结构类别路径，弥补通用化学分类在天然产物上的不足。"
+    },
+    {
+      "id": "ref-coconut-2021",
+      "name": "COCONUT online 2021",
+      "title": "COCONUT online: Collection of Open Natural Products database",
+      "authors": "Maria Sorokina, Peter Merseburger, Kohulan Rajan, Mehmet Aziz Yirik 等",
+      "year": 2021,
+      "venue": "Journal of Cheminformatics",
+      "doi": "10.1186/s13321-020-00478-9",
+      "url": "https://doi.org/10.1186/s13321-020-00478-9",
+      "usage": "开放天然产物集合的代表性数据库，用来对照 LOTUS 的覆盖范围和数据组织方式。",
+      "summary": "汇总多个公开来源的天然产物结构，强调开放获取、结构去重和来源标注。"
+    },
+    {
+      "id": "ref-coconut2-2024",
+      "name": "COCONUT 2.0（NAR 2024）",
+      "title": "COCONUT 2.0: a comprehensive overhaul and curation of the collection of open natural products database",
+      "authors": "Venkata Chandrasekhar, Kohulan Rajan, Sri Ram Sagar Kanakam, Nisha Sharma 等",
+      "year": 2024,
+      "venue": "Nucleic Acids Research",
+      "doi": "10.1093/nar/gkae1063",
+      "url": "https://doi.org/10.1093/nar/gkae1063",
+      "usage": "了解天然产物数据库在去重、策展和数据质量上的最新做法，用于解释 LOTUS 的局限与互补关系。",
+      "summary": "对 COCONUT 数据库的全面重构，重点改进去重、来源追踪、许可标注和数据质量。"
+    }
+  ],
+  "websites": [
+    {
+      "id": "site-lotus",
+      "name": "LOTUS 官网",
+      "title": "LOTUS: natural products online",
+      "publisher": "LOTUS Initiative",
+      "url": "https://lotus.naturalproducts.net/",
+      "usage": "核对 LOTUS 的浏览方式、版本和下载入口；本项目快照为 frozen 260413。",
+      "summary": "LOTUS 的官方门户，提供天然产物结构、生物来源与分类的浏览、检索和下载。"
+    },
+    {
+      "id": "site-lotus-download",
+      "name": "LOTUS 数据下载",
+      "title": "LOTUS downloads",
+      "publisher": "LOTUS Initiative",
+      "url": "https://lotus.naturalproducts.net/download",
+      "usage": "获取 LOTUS metadata 与结构文件，重建本项目 data/molecules 分片。",
+      "summary": "LOTUS 官方下载页，提供不同版本的元数据与结构数据包。"
+    },
+    {
+      "id": "site-chebi",
+      "name": "ChEBI",
+      "title": "Chemical Entities of Biological Interest (ChEBI)",
+      "publisher": "EMBL-EBI",
+      "url": "https://www.ebi.ac.uk/chebi/",
+      "usage": "化合物本体、命名和类别交叉核对，辅助解释化学分类。",
+      "summary": "欧洲生物信息研究所维护的化学实体本体数据库，提供术语、结构和分类关系。"
+    },
+    {
+      "id": "site-pubchem",
+      "name": "PubChem",
+      "title": "PubChem",
+      "publisher": "NCBI / NIH",
+      "url": "https://pubchem.ncbi.nlm.nih.gov/",
+      "usage": "用 LOTUS 记录里的 pubchem cid 做结构与名称交叉引用。",
+      "summary": "美国国立卫生研究院维护的化合物数据库，收录结构、属性、生物活性和文献关联。"
+    },
+    {
+      "id": "site-rdkit",
+      "name": "RDKit 文档",
+      "title": "RDKit documentation",
+      "publisher": "RDKit",
+      "url": "https://www.rdkit.org/docs/",
+      "usage": "实现 Morgan 指纹、Tanimoto 相似度、ETKDG 3D 构象和 2D 结构式渲染。",
+      "summary": "开源化学信息学工具包文档，涵盖分子读写、指纹、描述符、构象生成和绘图。"
+    },
+    {
+      "id": "site-threejs",
+      "name": "Three.js 文档",
+      "title": "Three.js documentation",
+      "publisher": "Three.js",
+      "url": "https://threejs.org/docs/",
+      "usage": "实现世界树的 WebGL 星点渲染、相机漫游和交互。",
+      "summary": "浏览器 3D 图形库文档，提供场景、相机、材质、点云和着色器接口。"
+    },
+    {
+      "id": "site-zhipu",
+      "name": "智谱开放平台",
+      "title": "智谱 AI 开放平台",
+      "publisher": "智谱 AI",
+      "url": "https://open.bigmodel.cn/",
+      "usage": "GLM 对话接口、流式输出和 function calling 的接入依据。",
+      "summary": "提供 GLM 系列模型的 API、SDK 与计费说明，接口与 OpenAI 兼容。"
+    },
+    {
+      "id": "site-mdn-sse",
+      "name": "MDN SSE",
+      "title": "Server-sent events (MDN Web Docs)",
+      "publisher": "MDN Web Docs",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events",
+      "usage": "AI 分析坞的流式回答、工具轨迹和引用事件使用 SSE 传输。",
+      "summary": "浏览器端服务器推送事件的标准说明，包括 EventSource、事件格式和连接管理。"
+    }
+  ]
+}

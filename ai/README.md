@@ -101,6 +101,86 @@ POST /api/ai/file
 
 思考过程：GLM 默认请求 `thinking: { type: "enabled" }`，流里的 `reasoning_content` 会以 SSE `{type:"think"}` 转发给前端，AI 坞里显示为默认折叠的「思考过程」，用户可展开/收起。`AI_THINKING=0` 可关闭请求；服务商不认这个参数时会自动去掉重试一次。
 
+## 5.1 知识库（RAG）
+
+知识库分两层：
+
+1. **系统知识库（内置、不可删除）**
+   - `data/kb-seed/lotus-dataset.md`：LOTUS 数据集卡片，说明版本、规模、字段、分类示例、局限和引用方式——本项目的第一知识库；
+   - `data/kb-seed/references.json`：开发参考的论文与权威网站（LOTUS eLife 2022、ClassyFire、NPClassifier、COCONUT、LOTUS 官网/下载、ChEBI、PubChem、RDKit、Three.js、智谱开放平台、MDN SSE），每篇都带 DOI / URL、项目用途和自写摘要；
+   - 服务启动时按内容哈希同步到 `data/kb/`，内容没变不重复向量化，变了自动重建。
+2. **我的知识库（用户上传）**
+   - 在 AI 坞右上角 **知识库 → 上传文档**，支持 PDF / Word / Excel / PPT / CSV / 文本；
+   - 服务端抽正文 → 切块 → 向量化 → 存到 `data/kb/`（已 gitignore）。
+
+切块规则：按段落 / 句子切成约 500 字、80 字重叠的块；「第 X 章」和小标题不跨块合并，引用能落到具体小节。重叠只用于向量化和检索，引用展示的仍是干净正文。
+
+检索采用 **向量余弦 + BM25 词法（中文二元组）混合**。神经向量优先；没有 API Key、服务商不支持 `/embeddings`、或额度不足时，自动改用**本地特征哈希向量**（768 维、零依赖、零费用），文档状态显示为「本地向量化」，仍然可以按余弦召回，而不是只剩关键词。
+
+来源类型会随检索结果一起返回，前端显示为 `LOTUS` / `论文` / `网站` / `我的` 标签；系统知识库文档不允许删除。提示词规定引用格式：LOTUS 数据写 `LOTUS 260413`，论文写“第一作者 et al. 年份, 期刊, DOI”，网站写“站点名, URL（访问日期）”，用户文档写《文件名》第 N 段。
+
+```text
+GET    /api/ai/kb                  文档列表 + 统计
+POST   /api/ai/kb                  { name, type, data(base64) }
+DELETE /api/ai/kb?id=<docId>
+GET    /api/ai/kb/search?q=&limit= 直接测试召回
+```
+
+对话时：
+
+- 自动检索最相关的 4 个段落，注入模型上下文，并通过 SSE `source` 事件把引用推给前端；
+- 模型也可以调用 `search_knowledge` 工具换关键词再查（每轮最多 3 次）；
+- 系统提示词要求优先依据知识库、标注《文件名》第 N 段，知识库没有的要明说。
+
+相关环境变量：
+
+```env
+# 向量模型；DeepSeek / MiMo 没有 /embeddings 时可留空 → 自动用关键词检索
+AI_EMBED_MODEL=embedding-3
+AI_KB_MAX_CHUNKS=240
+AI_KB_CHUNK_SIZE=500
+AI_KB_CHUNK_OVERLAP=80
+AI_KB_LOCAL_DIM=768
+```
+
+## 5.2 多模态识图
+
+架构是“视觉模型看图，文本模型推理”：
+
+1. 前端上传 PNG / JPEG / WebP / GIF（单张 ≤ 8MB，最多 2 张），以 base64 data URL 提交；
+2. 服务端调用视觉模型，只让它描述图片中确实可见的内容（主体、文字、结构式骨架/官能团、图表坐标轴与趋势），并明确要求“不确定就说不确定”；
+3. 描述作为【图片识别结果（视觉模型，仅供参考）】附在用户消息里，再交给主模型做推理；
+4. 主模型可以继续调用 `query_molecules` / `find_similar` / `explain` 核对，回答里区分“图片看到的内容”和“LOTUS 核实的内容”。
+
+配置有两种方式（任选其一）：
+
+1. 页面右上角 **⚙ 场景设置 → 多模态 / 视觉模型**：填视觉 Base URL、视觉模型、视觉 API Key，点 **测试识图** 会保存配置并发一张测试图验证；Key 只写入本机 `.run/ai-config.json`，不回传前端。
+2. 在 `ai/.env` 里配置：
+
+```env
+# GLM-4V
+AI_VISION_MODEL=glm-4v-plus
+AI_VISION_BASE_URL=https://open.bigmodel.cn/api/paas/v4
+AI_VISION_API_KEY=你的视觉服务 Key
+
+# 本地 Ollama（OpenAI 兼容）
+# AI_VISION_BASE_URL=http://127.0.0.1:11434/v1
+# AI_VISION_MODEL=qwen2.5vl
+# AI_VISION_API_KEY=ollama
+```
+
+`AI_VISION_BASE_URL` 不填时复用对话服务商；`AI_VISION_API_KEY` 不填时用 `AI_API_KEY`。纯文本模型（当前服务商的 `deepseek-v4-pro`）看不到图片，服务端会直接返回“请配置视觉模型”的提示，而不是把图片当文字硬答。
+
+探测接口：
+
+```text
+POST /api/ai/vision-test
+{ "dataUrl": "data:image/png;base64,..." }
+→ { "ok": true, "model": "glm-4v-plus", "sample": "..." }
+```
+
+`/api/ai/health` 里的 `vision` / `visionReady` 会显示当前视觉模型和是否就绪。
+
 ## 6. 当前 Step 1 能力
 
 - `/api/ai/health`：服务状态、是否配置 Key、相似索引是否加载
@@ -108,6 +188,10 @@ POST /api/ai/file
 - `/api/ai/test`：用当前配置发一条最小请求
 - `/api/ai/chat`：SSE 流式对话 + 工具调用 + 附件正文
 - `/api/ai/file`：上传并解析常见文档
+- `/api/ai/vision-test`：用一张图片探测视觉模型是否可用
+- `/api/ai/models`：列出当前服务商的模型 ID
+- `/api/ai/kb` GET/POST/DELETE：知识库列表、上传、删除
+- `/api/ai/kb/search?q=...`：直接测试知识库召回
 - `/api/ai/similar?inchikey=...`：直接测试相似分子
 
 工具：
@@ -117,12 +201,14 @@ POST /api/ai/file
 - `render_chart`：返回图表 spec，前端渲染
 - `scene_action`：返回镜头/高亮动作（Step 2 接 TreeScene）
 - `explain`：返回用于引用的 LOTUS 元数据
+- `web_search`：公开网页联网搜索（每轮最多 3 次）
+- `search_knowledge`：检索用户上传的知识库段落（每轮最多 3 次）
 
 无 Key 时 `/api/ai/chat` 会返回**本地演示回答**（真实查询 LOTUS + 图表），方便先联调界面。
 
 ## 7. 下一步
 
-1. 语义搜索：本地 embedding + 预计算向量
-2. 评测集：查询理解准确率、工具选择正确率、引用正确性
-3. 扫描版 PDF OCR（需要额外依赖，当前不做）
-4. 附件多轮追问：把附件正文保留在当前会话，而不是只随第一轮发送
+1. 评测集：查询理解准确率、工具选择正确率、引用正确性
+2. 扫描版 PDF OCR（需要额外依赖，当前不做）
+3. 附件多轮追问：把附件正文保留在当前会话，而不是只随第一轮发送
+4. 知识库重排（rerank）与按文档过滤检索
