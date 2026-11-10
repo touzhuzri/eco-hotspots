@@ -66,8 +66,9 @@
 2. 启动 AI 代理：`./start-ai.sh`（Windows 用 `start-ai.cmd`）
 3. 站点仍用 `./start.sh daemon` 启动；站点会把 `/api/ai` 代理到本机 `8790`
 4. 打开页面底部 AI 分析坞，或右上角 ⚙ 配置服务商 / Base URL / 模型 / Key
+5. 知识库分两层：内置的 **LOTUS 数据集卡片 + 开发参考论文 + 权威网站**（`data/kb-seed/`，不可删除），以及你上传的 PDF / Word / CSV；回答会自动检索并标注《文件名》第 N 段、论文 DOI 或网站 URL
 
-AI 代理没有 npm 依赖；相似分子索引已生成在 `data/similarity/`，可用 `pipeline/build-molecule-similarity.py` 重建。详见 [`ai/README.md`](ai/README.md)。
+AI 代理没有 npm 依赖；相似分子索引已生成在 `data/similarity/`，可用 `pipeline/build-molecule-similarity.py` 重建。内置知识库种子在 `data/kb-seed/`（随仓库提交），运行时正文和向量存在本机 `data/kb/`，已在 `.gitignore` 中忽略。详见 [`ai/README.md`](ai/README.md) 和 [`data/kb-seed/README.md`](data/kb-seed/README.md)。
 
 ### 方式 B：只预览前端
 

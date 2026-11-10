@@ -62,6 +62,11 @@ const INTRO_OPTIONS = [
     label: "上传 PDF / CSV 试试",
     prompt: "上传一份 PDF、Word 或 CSV 试试",
   },
+  {
+    label: "建立我的知识库",
+    kb: true,
+    title: "上传 PDF / Word / CSV，之后回答会自动检索并标注出处",
+  },
 ];
 
 const CAPABILITIES = [
@@ -99,8 +104,22 @@ export function mountAiDock(el, { scene } = {}) {
         <span class="ai-dock-title">AI 分析</span>
         <span class="ai-dock-sub">世界树 · LOTUS</span>
         <span class="ai-dock-status"><i></i><b id="aiStatusBadge">连接中…</b></span>
+        <button type="button" class="ai-dock-kb" id="aiKbBtn" title="上传文档，回答时自动检索引用">知识库<b id="aiKbCount">0</b></button>
         <button type="button" class="ai-dock-capabilities" id="aiIntroBtn" title="查看能力与示例">能力</button>
         <button type="button" class="ai-dock-collapse" id="aiCollapse">收起</button>
+      </div>
+
+      <div class="ai-kb-panel" id="aiKbPanel" hidden>
+        <div class="ai-kb-panel-head">
+          <b>知识库</b>
+          <span>系统：LOTUS / 论文 / 权威网站 · 我的文档上传后自动向量化</span>
+          <button type="button" class="ai-kb-close" id="aiKbClose" title="关闭">×</button>
+        </div>
+        <div class="ai-kb-actions">
+          <button type="button" class="ai-kb-upload-btn" id="aiKbUpload">＋ 上传文档</button>
+          <em id="aiKbHint">支持 PDF / Word / Excel / PPT / CSV / TXT</em>
+        </div>
+        <div class="ai-kb-list" id="aiKbList"></div>
       </div>
 
       <div class="ai-dock-thread" id="aiThread">
@@ -116,9 +135,11 @@ export function mountAiDock(el, { scene } = {}) {
                   `<button type="button" ${
                     c.tour
                       ? `data-ai-tour="1"`
-                      : c.random
-                        ? `data-ai-random="1"`
-                        : `data-ai-suggest="${esc(c.prompt)}"`
+                      : c.kb
+                        ? `data-ai-kb="1"`
+                        : c.random
+                          ? `data-ai-random="1"`
+                          : `data-ai-suggest="${esc(c.prompt)}"`
                   }${c.title ? ` title="${esc(c.title)}"` : ""}>${esc(
                     c.label
                   )}</button>`
@@ -131,9 +152,11 @@ export function mountAiDock(el, { scene } = {}) {
                   `<button type="button" ${
                     o.tour
                       ? `data-ai-tour="1"`
-                      : o.random
-                        ? `data-ai-random="1"`
-                        : `data-ai-suggest="${esc(o.prompt)}"`
+                      : o.kb
+                        ? `data-ai-kb="1"`
+                        : o.random
+                          ? `data-ai-random="1"`
+                          : `data-ai-suggest="${esc(o.prompt)}"`
                   }${o.title ? ` title="${esc(o.title)}"` : ""}>${esc(
                     o.label
                   )}</button>`
@@ -162,6 +185,7 @@ export function mountAiDock(el, { scene } = {}) {
       </form>
 
       <input type="file" id="aiFile" accept=".pdf,.docx,.xlsx,.pptx,.csv,.tsv,.json,.txt,.md,.markdown,.html,.htm,.xml,.yaml,.yml,.log,.smi,.smiles,text/*,application/pdf,application/json" hidden />
+      <input type="file" id="aiKbFile" accept=".pdf,.docx,.xlsx,.pptx,.csv,.tsv,.json,.txt,.md,.markdown,.html,.htm,.xml,.yaml,.yml,.log,.smi,.smiles,text/*,application/pdf,application/json" hidden />
     </div>`;
 
   const shell = el.querySelector("#aiShell");
@@ -171,6 +195,11 @@ export function mountAiDock(el, { scene } = {}) {
   const sendBtn = el.querySelector("#aiSend");
   const attach = el.querySelector("#aiAttach");
   const fileInput = el.querySelector("#aiFile");
+  const kbBtn = el.querySelector("#aiKbBtn");
+  const kbPanel = el.querySelector("#aiKbPanel");
+  const kbList = el.querySelector("#aiKbList");
+  const kbCount = el.querySelector("#aiKbCount");
+  const kbFile = el.querySelector("#aiKbFile");
   const suggestions = el.querySelector("#aiSuggestions");
   const collapseBtn = el.querySelector("#aiCollapse");
   const statusBadge = el.querySelector("#aiStatusBadge");
@@ -541,6 +570,7 @@ export function mountAiDock(el, { scene } = {}) {
       scene_action: "场景动作",
       explain: "读取元数据",
       web_search: "联网搜索",
+      search_knowledge: "检索知识库",
     };
     let summary = "";
     if (name === "query_molecules" && result?.ok) {
@@ -564,6 +594,8 @@ export function mountAiDock(el, { scene } = {}) {
         : `${result?.molecules?.length ?? 0} 条`;
     } else if (name === "web_search" && result?.ok) {
       summary = `${result.engine || "网络"} · ${result.results?.length ?? 0} 条`;
+    } else if (name === "search_knowledge" && result?.ok) {
+      summary = `${result.count ?? 0} 段`;
     } else if (result?.error) {
       summary = String(result.error).slice(0, 60);
     }
@@ -573,6 +605,43 @@ export function mountAiDock(el, { scene } = {}) {
     const span = document.createElement("span");
     span.textContent = `${labels[name] || name}${summary ? ` · ${summary}` : ""}`;
     live.tools.firstChild.appendChild(span);
+  }
+
+  /** 知识库引用：按 文档 + 段落 去重，折叠显示原文片段 */
+  function addSources(live, items) {
+    if (!Array.isArray(items) || !items.length) return;
+    live._kbKeys ||= new Set();
+    let box = live.cards.querySelector(".ai-kb-sources");
+    if (!box) {
+      box = document.createElement("div");
+      box.className = "ai-kb-sources";
+      box.innerHTML = `<div class="ai-kb-sources-head">知识库引用</div>`;
+      live.cards.appendChild(box);
+    }
+    for (const it of items) {
+      // 用文件名+段号去重：同一份文件重复入库时只显示一条引用
+      const key = `${it.name}:${it.chunk}`;
+      if (live._kbKeys.has(key)) continue;
+      live._kbKeys.add(key);
+      const card = document.createElement("details");
+      card.className = "ai-kb-source";
+      const pct = Math.round((Number(it.score) || 0) * 100);
+      const tag = it.builtin
+        ? it.sourceType === "lotus"
+          ? "LOTUS"
+          : it.sourceType === "paper"
+            ? "论文"
+            : "网站"
+        : "我的";
+      card.innerHTML = `
+        <summary>
+          <span class="ai-kb-tag is-${esc(it.sourceType || "user")}">${tag}</span>
+          <span>《${esc(it.name)}》第 ${esc(it.chunk)} 段</span>
+          <em>相关度 ${pct}%</em>
+        </summary>
+        <p>${esc(it.snippet || "")}</p>`;
+      box.appendChild(card);
+    }
   }
 
   function refreshAiBadge() {
@@ -587,6 +656,137 @@ export function mountAiDock(el, { scene } = {}) {
       .catch(() => {
         statusBadge.textContent = "AI 服务未启动";
       });
+  }
+
+  // ── 知识库面板 ──────────────────────────────────────────
+  let kbTimer = null;
+  let kbBusy = false;
+
+  const KB_STATUS = {
+    ready: (d) => `已向量化 · ${d.chunks} 段`,
+    pending: (d) => `向量化中 ${d.embedded || 0}/${d.chunks} 段…`,
+    local: (d) => `本地向量化 · ${d.chunks} 段`,
+    lexical: (d) => `仅关键词检索 · ${d.chunks} 段`,
+  };
+
+  function renderKbList(docs) {
+    if (!kbList) return;
+    if (!docs.length) {
+      kbList.innerHTML = `<p class="ai-kb-empty">还没有文档。上传 PDF、Word、Excel 或 CSV，提问时我会自动检索并标注出处。</p>`;
+      return;
+    }
+    kbList.innerHTML = docs
+      .map((d) => {
+        const status = (KB_STATUS[d.status] || KB_STATUS.lexical)(d);
+        const title = d.embedError ? ` title="${esc(d.embedError)}"` : "";
+        const icon =
+          d.kind === "pdf" ? "📕" : d.kind === "table" ? "📊" : "📄";
+        const tag = d.builtin
+          ? d.sourceType === "lotus"
+            ? "LOTUS"
+            : d.sourceType === "paper"
+              ? "论文"
+              : "网站"
+          : "我的";
+        const delBtn =
+          d.removable === false
+            ? ""
+            : `<button type="button" class="ai-kb-del" data-kb-del="${esc(
+                d.id
+              )}" title="从知识库删除">×</button>`;
+        return `<div class="ai-kb-doc" data-id="${esc(d.id)}">
+        <span class="ai-kb-icon">${icon}</span>
+        <span class="ai-kb-tag is-${esc(d.sourceType || "user")}">${tag}</span>
+        <div class="ai-kb-doc-main">
+          <b title="${esc(d.name)}">${esc(d.name)}</b>
+          <em class="is-${esc(d.status)}"${title}>${esc(status)}${
+            d.truncated ? " · 已截断" : ""
+          }</em>
+        </div>
+        ${delBtn}
+      </div>`;
+      })
+      .join("");
+  }
+
+  async function refreshKb() {
+    if (!kbList) return;
+    try {
+      const res = await fetch("/api/ai/kb", { cache: "no-store" });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.ok) throw new Error(j.error || `HTTP ${res.status}`);
+      if (kbCount) kbCount.textContent = String(j.stats?.docs || 0);
+      renderKbList(j.docs || []);
+      const pending = (j.docs || []).some((d) => d.status === "pending");
+      if (pending && !kbTimer) {
+        kbTimer = setTimeout(() => {
+          kbTimer = null;
+          refreshKb();
+        }, 2500);
+      }
+    } catch (err) {
+      if (kbPanel && !kbPanel.hidden) {
+        kbList.innerHTML = `<p class="ai-kb-empty">知识库读取失败：${esc(
+          err.message
+        )}</p>`;
+      }
+    }
+  }
+
+  function readFileBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("本地读取失败"));
+      reader.onload = () => {
+        const s = String(reader.result || "");
+        resolve(s.slice(s.indexOf(",") + 1));
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function uploadToKb(file) {
+    if (!file || kbBusy) return;
+    kbBusy = true;
+    if (kbBtn) kbBtn.disabled = true;
+    if (kbList) {
+      kbList.insertAdjacentHTML(
+        "afterbegin",
+        `<div class="ai-kb-doc is-uploading">
+          <span class="ai-kb-icon">⏳</span>
+          <div class="ai-kb-doc-main"><b>${esc(
+            file.name
+          )}</b><em>解析并切段中…</em></div>
+        </div>`
+      );
+    }
+    try {
+      const data = await readFileBase64(file);
+      const res = await fetch("/api/ai/kb", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: file.name, type: file.type, data }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.ok) {
+        throw new Error(j.error || `上传失败（HTTP ${res.status}）`);
+      }
+      await refreshKb();
+    } catch (err) {
+      if (kbList) {
+        kbList.insertAdjacentHTML(
+          "afterbegin",
+          `<div class="ai-kb-doc is-error"><span class="ai-kb-icon">⚠️</span>
+            <div class="ai-kb-doc-main"><b>${esc(file.name)}</b><em>${esc(
+              String(err?.message || err).slice(0, 120)
+            )}</em></div></div>`
+        );
+      }
+    } finally {
+      kbBusy = false;
+      if (kbBtn) kbBtn.disabled = false;
+      if (kbFile) kbFile.value = "";
+    }
   }
 
   async function streamChat(userText, file, parsed) {
@@ -649,6 +849,7 @@ export function mountAiDock(el, { scene } = {}) {
             continue;
           }
           if (event.type === "status") {
+            live.status.hidden = false;
             live.status.textContent = event.text || "AI 正在分析…";
           } else if (event.type === "think") {
             thinkText += event.text || "";
@@ -658,6 +859,8 @@ export function mountAiDock(el, { scene } = {}) {
               "zh-CN"
             )} 字`;
           } else if (event.type === "delta") {
+            // 正文开始流式输出后隐藏“正在分析”，让引用和答案占主位
+            live.status.hidden = true;
             finalText += event.text || "";
             live.text.innerHTML = mdToHtml(finalText);
             scrollBottom();
@@ -668,6 +871,8 @@ export function mountAiDock(el, { scene } = {}) {
             scrollBottom();
           } else if (event.type === "tool") {
             addToolChip(live, event.name, event.result);
+          } else if (event.type === "source") {
+            addSources(live, event.items);
           } else if (event.type === "chart") {
             live.cards.insertAdjacentHTML("beforeend", chartHtml(event.spec));
           } else if (event.type === "scene") {
@@ -878,8 +1083,43 @@ export function mountAiDock(el, { scene } = {}) {
     }
   });
 
+  // 知识库面板
+  kbBtn?.addEventListener("click", () => {
+    setOpen(true);
+    kbPanel.hidden = !kbPanel.hidden;
+    if (!kbPanel.hidden) refreshKb();
+  });
+  el.querySelector("#aiKbClose")?.addEventListener("click", () => {
+    kbPanel.hidden = true;
+  });
+  el.querySelector("#aiKbUpload")?.addEventListener("click", () =>
+    kbFile.click()
+  );
+  kbFile?.addEventListener("change", () => {
+    const f = kbFile.files?.[0];
+    if (f) uploadToKb(f);
+  });
+  kbList?.addEventListener("click", (e) => {
+    const del = e.target.closest("[data-kb-del]");
+    if (!del) return;
+    const id = del.dataset.kbDel;
+    const name =
+      del.closest(".ai-kb-doc")?.querySelector("b")?.textContent || "这份文档";
+    if (!window.confirm(`从知识库删除「${name}」？`)) return;
+    fetch(`/api/ai/kb?id=${encodeURIComponent(id)}`, { method: "DELETE" })
+      .then((r) => r.json().catch(() => ({})))
+      .finally(() => refreshKb());
+  });
+  refreshKb();
+
   // 建议 chips
   el.addEventListener("click", (e) => {
+    const kbChip = e.target.closest("[data-ai-kb]");
+    if (kbChip) {
+      kbPanel.hidden = false;
+      refreshKb();
+      return;
+    }
     const tour = e.target.closest("[data-ai-tour]");
     if (tour) {
       setOpen(false);
