@@ -1383,7 +1383,7 @@ export function mountTreeScene(rootEl) {
   let clockHandsGroup = null;
   let clockHandMats = [];
   let clockHub = null;
-  // 校徽只作为点阵采样的遮罩，不渲染原图
+  // 站点徽标只作为点阵采样的遮罩，不渲染原图
   let clockEmblemMask = null;
 
   /**
@@ -2288,7 +2288,7 @@ export function mountTreeScene(rootEl) {
     clockHub.renderOrder = 3;
     ring.add(clockHub);
 
-    // 校徽仅作为像素遮罩：星点按 alpha/亮度对比采样，原图不进入画面
+    // 站点徽标仅作为像素遮罩：星点按 alpha/亮度对比采样，原图不进入画面
     clockEmblemMask = null;
     const emblemImg = new Image();
     emblemImg.onload = () => {
@@ -2329,7 +2329,7 @@ export function mountTreeScene(rootEl) {
         }
       } catch (_) {}
     };
-    emblemImg.src = "assets/hzau-emblem.png";
+    emblemImg.src = "assets/emblem.png";
     scene.add(ring);
 
     // ── 选中光环 ──
@@ -2879,7 +2879,7 @@ export function mountTreeScene(rootEl) {
       idx++;
     };
     if (clockEmblemMask) {
-      // 用校徽 alpha/亮度做对比采样：星点按明暗密度组成校徽
+      // 用站点徽标 alpha/亮度做对比采样：星点按明暗密度组成徽标
       const m = clockEmblemMask;
       const size = R * 1.68;
       const inv = size / m.S;
@@ -2922,7 +2922,7 @@ export function mountTreeScene(rootEl) {
         put(rnd() * TAU, R * (0.99 + 0.32 * Math.sqrt(rnd())));
       }
     } else {
-      // 校徽遮罩未就绪时退回原来的表盘纹样
+      // 徽标遮罩未就绪时退回原来的表盘纹样
       const tickN = Math.min(n, 60 * 180);
       for (let m = 0; m < 60 && idx < tickN; m++) {
         for (let k = 0; k < 180 && idx < tickN; k++) {

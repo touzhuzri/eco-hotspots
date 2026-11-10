@@ -896,7 +896,7 @@ body.ui-intro .hotspot3d {
   width: min(320px, 86vw);
 }
 
-/* 花瓣：背景层在校徽之后，前景层在文字之上（极淡） */
+/* 花瓣：背景层在徽标之后，前景层在文字之上（极淡） */
 .boot-flora {
   position: absolute;
   inset: 0;
@@ -928,7 +928,7 @@ body.ui-intro .hotspot3d {
     transparent 70%
   );
   filter: blur(10px);
-  /* 与校徽亮度同频呼吸：等入场结束后一起开始 */
+  /* 与徽标亮度同频呼吸：等入场结束后一起开始 */
   animation: boot-halo 5.5s 1.15s ease-in-out infinite backwards;
 }
 
