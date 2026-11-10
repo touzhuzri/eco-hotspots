@@ -33,10 +33,37 @@ function friendlyError(message) {
   if (/abort|timeout|超时/i.test(s)) {
     return "模型响应超时。问题较大或网络较慢时可以点“重试”；也可以把问题分成两步。";
   }
-  if (/50[234]|fetch|ECONNREFUSED|Failed to fetch|网络/i.test(s)) {
-    return "连接 AI 服务失败，请确认 node ai/server.mjs 正在运行。";
+  if (/50[234]|Bad Gateway|Service Unavailable|Gateway Timeout/i.test(s)) {
+    return "AI 上游模型服务暂时不可用（5xx），请等 10–30 秒后点“重试”。";
+  }
+  if (/ECONNREFUSED|Failed to fetch|NetworkError|fetch failed|Load failed|网络/i.test(s)) {
+    return "连接本地 AI 代理失败，请确认服务正在运行（./start.sh status 或 node ai/server.mjs）。";
   }
   return s.slice(0, 240) || "未知错误";
+}
+
+/** 聊天请求失败时先探一下 /api/ai/health，避免把上游 5xx 误报成“服务未启动” */
+async function friendlyChatError(err) {
+  const raw = String(err?.message || err);
+  if (
+    /50[234]|ECONNREFUSED|Failed to fetch|NetworkError|fetch failed|Load failed|网络/i.test(
+      raw
+    )
+  ) {
+    try {
+      const res = await fetch("/api/ai/health", {
+        cache: "no-store",
+        signal: AbortSignal.timeout(2500),
+      });
+      if (res.ok) {
+        return "AI 代理正在运行，但本轮聊天连接失败（可能是上游 5xx 或网络抖动）。请等 10–30 秒后点“重试”。";
+      }
+    } catch (_) {
+      // 健康检查也失败，说明本地代理确实不可用
+    }
+    return "连接 AI 服务失败，请确认 node ai/server.mjs 正在运行（可用 ./start.sh status 检查）。";
+  }
+  return friendlyError(raw);
 }
 
 const INTRO_OPTIONS = [
@@ -961,7 +988,7 @@ export function mountAiDock(el, { scene } = {}) {
       scrollBottom();
     } catch (err) {
       live.status.remove();
-      const message = friendlyError(err?.message || err);
+      const message = await friendlyChatError(err);
       live.text.innerHTML = `<p class="ai-error">${esc(message)}</p>`;
       if (live.tools.firstChild) {
         live.tools.firstChild.insertAdjacentHTML(
