@@ -1634,16 +1634,24 @@ function readBody(req, limit = 2 * 1024 * 1024) {
   return new Promise((resolve, reject) => {
     let size = 0;
     const chunks = [];
+    let tooLarge = false;
     req.on("data", (c) => {
+      if (tooLarge) return;
       size += c.length;
       if (size > limit) {
-        reject(new Error("请求体过大"));
-        req.destroy();
+        tooLarge = true;
+        chunks.length = 0;
+        reject(
+          new Error(`请求体过大（上限 ${Math.round(limit / 1024 / 1024)}MB）`)
+        );
+        // 继续把剩余数据读掉，让服务端还能正常返回 413，而不是直接断开
+        req.resume();
         return;
       }
       chunks.push(c);
     });
     req.on("end", () => {
+      if (tooLarge) return;
       try {
         const text = Buffer.concat(chunks).toString("utf8");
         resolve(text ? JSON.parse(text) : {});
@@ -1651,7 +1659,9 @@ function readBody(req, limit = 2 * 1024 * 1024) {
         reject(err);
       }
     });
-    req.on("error", reject);
+    req.on("error", (err) => {
+      if (!tooLarge) reject(err);
+    });
   });
 }
 
@@ -1956,9 +1966,14 @@ const server = createServer(async (req, res) => {
   if (url.pathname === "/api/ai/chat" && req.method === "POST") {
     let body;
     try {
-      body = await readBody(req);
+      // 图片以 base64 data URL 随聊天提交：2 张 × 8MB ≈ 22MB，留给 JSON 余量
+      body = await readBody(req, 24 * 1024 * 1024);
     } catch (err) {
-      return json(res, 400, { ok: false, error: err.message });
+      const tooLarge = /请求体过大/.test(String(err?.message || err));
+      return json(res, tooLarge ? 413 : 400, {
+        ok: false,
+        error: err.message,
+      });
     }
     res.writeHead(200, {
       "Content-Type": "text/event-stream; charset=utf-8",

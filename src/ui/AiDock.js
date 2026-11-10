@@ -33,6 +33,9 @@ function friendlyError(message) {
   if (/abort|timeout|超时/i.test(s)) {
     return "模型响应超时。问题较大或网络较慢时可以点“重试”；也可以把问题分成两步。";
   }
+  if (/请求体过大|payload too large|entity too large|HTTP 413/i.test(s)) {
+    return "图片或附件太大，单次请求上限约 24MB。请压缩图片或减少数量后重试。";
+  }
   if (/50[234]|Bad Gateway|Service Unavailable|Gateway Timeout/i.test(s)) {
     return "AI 上游模型服务暂时不可用（5xx），请等 10–30 秒后点“重试”。";
   }
@@ -45,6 +48,9 @@ function friendlyError(message) {
 /** 聊天请求失败时先探一下 /api/ai/health，避免把上游 5xx 误报成“服务未启动” */
 async function friendlyChatError(err) {
   const raw = String(err?.message || err);
+  if (/请求体过大|payload too large|entity too large|HTTP 413/i.test(raw)) {
+    return "图片或附件太大，单次请求上限约 24MB。请压缩图片或减少数量后重试。";
+  }
   if (
     /50[234]|ECONNREFUSED|Failed to fetch|NetworkError|fetch failed|Load failed|网络/i.test(
       raw
@@ -370,6 +376,14 @@ export function mountAiDock(el, { scene } = {}) {
   function parseFile(file) {
     if (isImageFile(file)) {
       return new Promise((resolve) => {
+        if (file.size > 8 * 1024 * 1024) {
+          resolve({
+            ok: false,
+            name: file.name,
+            error: "图片超过 8MB，请压缩后再上传",
+          });
+          return;
+        }
         const reader = new FileReader();
         reader.onerror = () =>
           resolve({ ok: false, name: file.name, error: "本地读取失败" });
@@ -916,7 +930,16 @@ export function mountAiDock(el, { scene } = {}) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok || !res.body) {
+        let detail = "";
+        try {
+          const j = await res.json();
+          detail = j?.error ? String(j.error) : "";
+        } catch (_) {}
+        throw new Error(
+          detail ? `HTTP ${res.status}: ${detail}` : `HTTP ${res.status}`
+        );
+      }
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
