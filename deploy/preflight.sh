@@ -55,7 +55,7 @@ ulimit -n 2>/dev/null
 echo
 
 echo "===== 4. 端口占用 ====="
-for p in 80 443 5173 8788 41018; do
+for p in 80 443 5173 8788 8790 41018; do
   echo "--- port $p ---"
   if command -v ss >/dev/null 2>&1; then
     ss -ltn 2>/dev/null | grep -E "[:.]$p[[:space:]]" || echo free
@@ -79,7 +79,7 @@ echo
 echo "===== 5. 项目文件 ====="
 for f in \
   index.html start.sh \
-  deploy/site-server.mjs deploy/claim-server.mjs \
+  deploy/site-server.mjs deploy/claim-server.mjs ai/server.mjs \
   vendor/three/three.module.js \
   vendor/three/addons/controls/OrbitControls.js \
   vendor/rdkit/RDKit_minimal.js vendor/rdkit/RDKit_minimal.wasm \
@@ -104,6 +104,7 @@ echo "logs writable: $([ -d logs ] && [ -w logs ] && echo yes || echo no/absent)
 echo "  PORT=${PORT:-<unset>}"
 echo "  SITE_PORT=${SITE_PORT:-<unset>}"
 echo "  CLAIM_PORT=${CLAIM_PORT:-<unset>}"
+echo "  AI_PORT=${AI_PORT:-<unset>}"
 echo "  CLAIM_FILE=${CLAIM_FILE:-<unset>}"
 echo
 

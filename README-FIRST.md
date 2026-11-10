@@ -43,7 +43,7 @@ chmod +x install-offline.sh start.sh deploy/preflight.sh
 
 - 优先使用系统 Node（要求 >= 18）
 - 如果没有 Node 或版本太低，自动解压包内 Node 22.14.0 到 `.runtime/node`
-- 然后调用 `start.sh` 启动站点和领养服务
+- 然后调用 `start.sh` 启动站点、领养服务和 AI 代理
 
 面板/Docker 用前台运行（默认）；普通 VPS 也可以：
 
@@ -157,7 +157,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install-windows.ps1
 
 - 优先使用系统 Node 18+
 - 没有或版本太低时解压包内 Windows Node 到 `.runtime\node`
-- 启动站点和领养服务
+- 启动站点、领养服务和 AI 代理
 
 也可以直接双击/运行：
 
@@ -271,7 +271,7 @@ cat /tmp/eco-preflight.txt
 | --- | --- |
 | 面板显示“服务器已停止” | 面板用前台 `./install-offline.sh`，不要用 `daemon` |
 | 没有 `unzip` | 用 `busybox unzip`、`bsdtar`、`python3 -m zipfile -e`，或上传已解压目录 |
-| 没有 `bash` | 按交接手册 5.7 手动启动两个 Node 服务 |
+| 没有 `bash` | 按交接手册 5.7 手动启动三个 Node 服务（站点、领养、AI） |
 | Alpine/musl | 包内是 glibc Node；Alpine 请用 musl 兼容的 Node 或 apk 离线包 |
 | Windows 服务器 | 用 `start-windows.cmd` 或 `install-windows.ps1`；包内已带 win-x64 Node |
 | 页面卡在加载 | 检查 `vendor/three/` 是否完整、`index.html` 是否最新；不要使用旧 CDN 版本 |

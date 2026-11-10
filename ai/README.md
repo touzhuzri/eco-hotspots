@@ -20,7 +20,17 @@ AI_PORT=8790
 
 ## 2. 启动
 
-先启动 AI 代理：
+项目根目录的一键启动脚本会同时拉起站点、领养服务和 AI 代理：
+
+```bash
+./start.sh daemon
+# Windows
+start-windows.cmd
+```
+
+站点会把 `/api/ai/*` 代理到 `127.0.0.1:8790`；`/api` 的其它请求仍然走领养服务。用 `./start.sh status` 可以看到三项服务状态；`AI_DISABLED=1 ./start.sh` 可跳过 AI。
+
+只调试 AI 时，也可以单独启动：
 
 ```bash
 node ai/server.mjs
@@ -28,15 +38,11 @@ node ai/server.mjs
 ./start-ai.sh
 ```
 
-再启动站点（如果还没启动）：
+然后单独启动站点：
 
 ```bash
-./start.sh daemon
-# 或者直接
 node deploy/site-server.mjs
 ```
-
-站点会把 `/api/ai/*` 代理到 `127.0.0.1:8790`；`/api` 的其它请求仍然走领养服务。
 
 AI 代理没有 npm 依赖，使用 Node 内置 `fetch`，要求 Node 20.12+（当前项目 Node 24）。
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 世界树 · 一键启动（可领养版本）
+# 世界树 · 一键启动（站点 + 领养 + AI）
 #
 # 面板/容器（推荐）：
 #   ./start.sh            前台运行，进程不退出
@@ -13,12 +13,15 @@
 #   ./start.sh restart
 #
 # 公开端口只有一个：SITE_PORT（默认 5173；面板若设置 $PORT 则优先使用 $PORT）。
-# 领养 API 由 deploy/site-server.mjs 在同源 /api 反向代理到内部的 8788，
-# 不需要额外暴露 8788。前端在 localhost:5173 开发时仍会直连 8788。
+# 领养 API 由 deploy/site-server.mjs 在同源 /api 反向代理到内部的 8788；
+# AI 代理由同源 /api/ai 反向代理到内部的 8790。两个内部端口都不需要对外暴露。
 #
 # 可用环境变量：
 #   SITE_PORT=5173          公开站点端口
 #   CLAIM_PORT=8788         内部领养服务端口
+#   AI_PORT=8790            内部 AI 代理端口
+#   AI_HOST=127.0.0.1       AI 代理绑定地址（内部）
+#   AI_DISABLED=1           跳过 AI 服务（只启动站点和领养）
 #   BIND_HOST=0.0.0.0        站点绑定地址
 #   CLAIM_HOST=127.0.0.1     领养服务绑定地址（内部）
 #   CLAIM_FILE=./claims.jsonl
@@ -34,6 +37,9 @@ cd "$ROOT"
 
 SITE_PORT="${SITE_PORT:-${PORT:-${SERVER_PORT:-5173}}}"
 CLAIM_PORT="${CLAIM_PORT:-8788}"
+AI_PORT="${AI_PORT:-8790}"
+AI_HOST="${AI_HOST:-127.0.0.1}"
+AI_DISABLED="${AI_DISABLED:-0}"
 BIND_HOST="${BIND_HOST:-0.0.0.0}"
 CLAIM_HOST="${CLAIM_HOST:-127.0.0.1}"
 CLAIM_FILE="${CLAIM_FILE:-$ROOT/claims.jsonl}"
@@ -44,11 +50,15 @@ RUN_DIR="$ROOT/.run"
 LOG_DIR="$ROOT/logs"
 SITE_PID_FILE="$RUN_DIR/site.pid"
 CLAIM_PID_FILE="$RUN_DIR/claim.pid"
+AI_PID_FILE="$RUN_DIR/ai.pid"
 SITE_LOG="$LOG_DIR/site.log"
 CLAIM_LOG="$LOG_DIR/claim.log"
+AI_LOG="$LOG_DIR/ai.log"
 
 STARTED_SITE=0
 STARTED_CLAIM=0
+STARTED_AI=0
+AI_READY=0
 
 mkdir -p "$RUN_DIR" "$LOG_DIR"
 
@@ -88,6 +98,7 @@ stop_one() {
 }
 
 stop_all() {
+  stop_one "AI 服务" "$AI_PID_FILE"
   stop_one "领养服务" "$CLAIM_PID_FILE"
   stop_one "静态站点" "$SITE_PID_FILE"
 }
@@ -128,10 +139,15 @@ wait_http() {
 }
 
 show_status() {
-  local ip claim_url site_url
+  local ip claim_url site_url ai_probe_host ai_url
   ip="$(local_ip)"
   claim_url="http://127.0.0.1:$SITE_PORT/api/claim/health"
   site_url="http://127.0.0.1:$SITE_PORT/"
+  ai_probe_host="$AI_HOST"
+  case "$ai_probe_host" in
+    0.0.0.0 | "") ai_probe_host="127.0.0.1" ;;
+  esac
+  ai_url="http://$ai_probe_host:$AI_PORT/api/ai/health"
   if is_alive "$SITE_PID_FILE"; then
     info "静态站点：运行中  PID $(pid_of "$SITE_PID_FILE")  http://$ip:$SITE_PORT/"
   elif wait_http "$site_url" 1; then
@@ -145,6 +161,15 @@ show_status() {
     info "领养服务：进程在运行但健康检查失败（检查 logs/claim.log）"
   else
     info "领养服务：不可用"
+  fi
+  if [ "$AI_DISABLED" = "1" ]; then
+    info "AI 服务：已禁用（AI_DISABLED=1）"
+  elif wait_http "$ai_url" 1; then
+    info "AI 服务：运行中  同源 http://$ip:$SITE_PORT/api/ai/health"
+  elif is_alive "$AI_PID_FILE"; then
+    info "AI 服务：进程在运行但健康检查失败（检查 logs/ai.log）"
+  else
+    info "AI 服务：未运行"
   fi
 }
 
@@ -206,15 +231,17 @@ start_services() {
     || info "提示：缺少 facets.json.gz，领养服务会退回 InChIKey 形状校验"
   [ -f "$ROOT/vendor/rdkit/RDKit_minimal.wasm" ] \
     || info "提示：缺少 vendor/rdkit，结构式将无法渲染"
-
-  if is_alive "$SITE_PID_FILE" || is_alive "$CLAIM_PID_FILE"; then
-    info "已有本脚本启动的实例："
-    show_status
-    return 0
+  if [ "$AI_DISABLED" != "1" ] && [ ! -f "$ROOT/ai/server.mjs" ]; then
+    info "提示：缺少 ai/server.mjs，将跳过 AI 服务"
   fi
 
   local claim_internal="http://127.0.0.1:$CLAIM_PORT/api/claim/health"
   local site_url="http://127.0.0.1:$SITE_PORT/"
+  local ai_probe_host="$AI_HOST"
+  case "$ai_probe_host" in
+    0.0.0.0 | "") ai_probe_host="127.0.0.1" ;;
+  esac
+  local ai_health="http://$ai_probe_host:$AI_PORT/api/ai/health"
 
   # ── 领养服务（只绑定内网） ──
   if port_free "$CLAIM_PORT"; then
@@ -238,12 +265,39 @@ start_services() {
     die "内部端口 $CLAIM_PORT 被占用，且不是可用的领养服务"
   fi
 
+  # ── AI 分析代理（只绑定内网） ──
+  if [ "$AI_DISABLED" = "1" ]; then
+    info "已按 AI_DISABLED=1 跳过 AI 服务"
+  elif [ ! -f "$ROOT/ai/server.mjs" ]; then
+    : # 上面已提示
+  elif port_free "$AI_PORT"; then
+    info "启动 AI 服务（内部 :$AI_PORT）……"
+    AI_PORT="$AI_PORT" \
+    AI_HOST="$AI_HOST" \
+    nohup node "$ROOT/ai/server.mjs" >>"$AI_LOG" 2>&1 &
+    echo $! >"$AI_PID_FILE"
+    STARTED_AI=1
+    if ! wait_http "$ai_health" 120; then
+      info "AI 服务启动失败，最近日志："
+      tail -n 60 "$AI_LOG" 2>/dev/null || true
+      stop_all
+      exit 1
+    fi
+    AI_READY=1
+  elif wait_http "$ai_health" 3; then
+    info "AI 服务已在运行，复用内部 :$AI_PORT"
+    AI_READY=1
+  else
+    die "内部端口 $AI_PORT 被占用，且不是可用的 AI 服务"
+  fi
+
   # ── 静态站 + /api 同源代理 ──
   if port_free "$SITE_PORT"; then
-    info "启动站点 :$SITE_PORT（/api → 127.0.0.1:$CLAIM_PORT）……"
+    info "启动站点 :$SITE_PORT（/api → 127.0.0.1:$CLAIM_PORT，/api/ai → 127.0.0.1:$AI_PORT）……"
     HOST="$BIND_HOST" \
     SITE_PORT="$SITE_PORT" \
     CLAIM_PROXY="http://127.0.0.1:$CLAIM_PORT" \
+    AI_PROXY="http://127.0.0.1:$AI_PORT" \
     nohup node "$ROOT/deploy/site-server.mjs" >>"$SITE_LOG" 2>&1 &
     echo $! >"$SITE_PID_FILE"
     STARTED_SITE=1
@@ -262,16 +316,28 @@ start_services() {
   local ip
   ip="$(local_ip)"
   info ""
-  info "启动完成（可领养版本，同源 /api）"
+  if [ "$AI_READY" = "1" ]; then
+    info "启动完成（站点 + 领养 + AI，同源 /api）"
+  else
+    info "启动完成（站点 + 领养，同源 /api）"
+  fi
   info "  站点：    http://$ip:$SITE_PORT/"
   info "  领养 API：http://$ip:$SITE_PORT/api/claim/health"
+  if [ "$AI_READY" = "1" ]; then
+    info "  AI API：  http://$ip:$SITE_PORT/api/ai/health"
+  else
+    info "  AI 服务：未启动（AI_DISABLED=1 或缺少 ai/server.mjs）"
+  fi
   info "  账本：    $CLAIM_FILE"
   info "  日志：    $LOG_DIR/site.log"
   info "            $LOG_DIR/claim.log"
+  if [ "$AI_READY" = "1" ]; then
+    info "            $LOG_DIR/ai.log"
+  fi
   info "  状态：    ./start.sh status"
   info "  停止：    ./start.sh stop"
   info ""
-  info "对外只需放行 TCP $SITE_PORT；$CLAIM_PORT 只在容器/本机内部使用。"
+  info "对外只需放行 TCP $SITE_PORT；$CLAIM_PORT / $AI_PORT 只在容器/本机内部使用。"
   if [ -n "${PORT:-}" ]; then
     info "已优先采用面板环境变量 PORT=$PORT。"
   fi
@@ -285,6 +351,11 @@ wait_foreground() {
   fi
   info "前台运行中，按 Ctrl-C 停止。"
   while :; do
+    if [ "$STARTED_AI" = "1" ] && ! is_alive "$AI_PID_FILE"; then
+      info "AI 服务已退出，停止其余服务。"
+      stop_all
+      exit 1
+    fi
     if [ "$STARTED_CLAIM" = "1" ] && ! is_alive "$CLAIM_PID_FILE"; then
       info "领养服务已退出，停止其余服务。"
       stop_all
