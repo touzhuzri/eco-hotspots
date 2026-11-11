@@ -2,17 +2,25 @@
 
 这个目录提供 **局域网/本机 AI 代理**，站点通过 `/api/ai/*` 同源访问，浏览器不接触 API Key。
 
-## 1. 填写 GLM API Key
+## 1. 填写 API Key（默认 DS Pro）
 
 编辑 `ai/.env`（已创建，已被 `.gitignore` 忽略）：
 
 ```env
-AI_PROVIDER=glm
-AI_BASE_URL=https://open.bigmodel.cn/api/paas/v4
-AI_MODEL=glm-4.6
-AI_API_KEY=在这里填你的 GLM Key
+AI_PROVIDER=dspro
+AI_BASE_URL=https://api.deepseek.com/v1
+AI_MODEL=deepseek-v4-pro
+AI_API_KEY=在这里填 DeepSeek 兼容接口 Key
+
+# 向量默认用 SiliconFlow；Key 与对话 Key 分开填
+AI_EMBED_BASE_URL=https://api.siliconflow.cn/v1
+AI_EMBED_MODEL=BAAI/bge-m3
+AI_EMBED_API_KEY=在这里填 SiliconFlow Key
+
 AI_PORT=8790
 ```
+
+GLM 示例：`AI_PROVIDER=glm` + `https://open.bigmodel.cn/api/paas/v4` + `glm-4.6`。设置面板的「服务商」下拉会预填 DS / DS Pro / DS Flash / GLM / MiMo。
 
 也可以在页面右上角 ⚙ **场景设置 → AI / API** 里填写并保存；保存后的配置在 `.run/ai-config.json`（同样不会进 git）。
 
@@ -54,10 +62,14 @@ AI 代理没有 npm 依赖，使用 Node 内置 `fetch`，要求 Node 20.12+（�
 
 | provider | 默认 Base URL | 默认模型 |
 | --- | --- | --- |
+| `deepseek`（DS） | `https://api.deepseek.com/v1` | `deepseek-chat` |
+| `dspro`（DS Pro） | `https://api.deepseek.com/v1` | `deepseek-v4-pro` |
+| `dsflash`（DS Flash） | `https://api.deepseek.com/v1` | `deepseek-flash` |
 | `glm` | `https://open.bigmodel.cn/api/paas/v4` | `glm-4.6` |
-| `deepseek` | `https://api.deepseek.com/v1` | `deepseek-chat` |
 | `mimo` | `https://api.xiaomimimo.com/v1` | `mimo-v2-flash` |
 | `custom` | 自己填 | 自己填 |
+
+设置面板的「服务商」下拉会按 DS / DS Pro / DS Flash / GLM / MiMo / 自定义预填 Base URL 和模型；「常用向量」下拉可一键填入 SiliconFlow `BAAI/bge-m3` 或智谱 `embedding-3`。
 
 所有服务商都走 OpenAI 兼容的 `/chat/completions`（流式 + function calling）。如果 MiMo 的实际地址/模型不同，直接在设置面板里改。
 
@@ -141,8 +153,11 @@ GET    /api/ai/kb/search?q=&limit= 直接测试召回
 相关环境变量：
 
 ```env
-# 向量模型；DeepSeek / MiMo 没有 /embeddings 时可留空 → 自动用关键词检索
+# 向量模型（可与对话模型分开；DeepSeek / MiMo 没有 /embeddings 时可留空 → 自动用本地向量）
+# Base URL 只填到 /v4 或 /v1，不要带 /chat/completions
+AI_EMBED_BASE_URL=https://open.bigmodel.cn/api/paas/v4
 AI_EMBED_MODEL=embedding-3
+# AI_EMBED_API_KEY=...
 AI_KB_MAX_CHUNKS=240
 AI_KB_CHUNK_SIZE=500
 AI_KB_CHUNK_OVERLAP=80
@@ -203,8 +218,13 @@ POST /api/ai/vision-test
 对话模型和向量模型可以分开配置：
 
 - 设置面板 →「知识库 / 向量模型」填 Base URL、模型（如 `embedding-3` / `bge-m3`）和 Key；
+- Base URL 只填到 `/v4` / `/v1` 这一级，例如 `https://open.bigmodel.cn/api/paas/v4`；带 `/chat/completions` 会被自动去掉；
+- 模型必须是有 embedding 能力的模型，不能填 `GLM-4.5-Flash` / `deepseek-chat` 等对话模型；智谱用 `embedding-3`；
+- SiliconFlow 示例：Base URL `https://api.siliconflow.cn/v1` + 模型 `BAAI/bge-m3`（免费档需实名认证；`Pro/BAAI/bge-m3` 是付费加速版）；
 - 也可以写 `AI_EMBED_BASE_URL` / `AI_EMBED_MODEL` / `AI_EMBED_API_KEY`；
 - 切换后点知识库面板的「重建向量」，或 `POST /api/ai/kb/reembed`。
+
+智谱返回 `1113 / 余额不足或无可用资源包` 时，说明当前账号没有 Embedding 资源包，与对话模型额度不通用；需要在智谱开放平台单独开通 `embedding-3` 资源包，或换用其它支持 `/embeddings` 的服务商。失败时文档会自动退回本地 768 维特征哈希向量，检索不中断。
 
 `POST /api/ai/embed-test` 用当前配置发一条最小向量请求，返回模型和维度。`GET /api/ai/health` 的 `embedding` / `kb.embedReady` 会显示是否真的走神经向量；没有可用配置时自动退回本地 768 维特征哈希 + BM25，不会中断检索。
 

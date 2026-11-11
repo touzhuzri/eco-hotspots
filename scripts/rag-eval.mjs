@@ -43,10 +43,14 @@ let mrr = 0;
 let kw4 = 0;
 
 const health = await getJson("/api/ai/health").catch(() => null);
+const kb = health?.kb || {};
+const vectorModel = kb.modelActual || kb.model || "unknown";
+const configured =
+  kb.model && kb.model !== vectorModel ? `（配置 ${kb.model}）` : "";
 console.log(`# RAG 检索评测`);
 console.log(`- 服务：${BASE}`);
 console.log(
-  `- 向量：${health?.kb?.model || "unknown"} · 文档 ${health?.kb?.docs ?? "?"} / 片段 ${health?.kb?.chunks ?? "?"}`
+  `- 向量：${vectorModel}${configured} · 文档 ${kb.docs ?? "?"} / 片段 ${kb.chunks ?? "?"}`
 );
 console.log(`- 评测集：${CASES.length} 题 · 取前 ${TOP_K} 条\n`);
 

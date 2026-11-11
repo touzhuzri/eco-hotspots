@@ -573,8 +573,10 @@ export function mountTreeScene(rootEl) {
       <div class="ss-ai">
         <label>服务商
           <select id="ssAiProvider">
+            <option value="deepseek">DS（DeepSeek）</option>
+            <option value="dspro">DS Pro</option>
+            <option value="dsflash">DS Flash</option>
             <option value="glm">GLM（智谱）</option>
-            <option value="deepseek">DeepSeek</option>
             <option value="mimo">MiMo</option>
             <option value="custom">自定义（OpenAI 兼容）</option>
           </select>
@@ -615,11 +617,18 @@ export function mountTreeScene(rootEl) {
       <div class="ss-sep"></div>
       <div class="ss-title ss-ai-title">知识库 / 向量模型</div>
       <div class="ss-ai">
+        <label>常用向量
+          <select id="ssEmbedPreset">
+            <option value="">保持当前 / 手动输入</option>
+            <option value="siliconflow">硅基流动 · BAAI/bge-m3</option>
+            <option value="zhipu">智谱 · embedding-3</option>
+          </select>
+        </label>
         <label>向量 Base URL
-          <input id="ssEmbedBase" type="text" spellcheck="false" placeholder="留空复用上面的 Base URL"/>
+          <input id="ssEmbedBase" type="text" spellcheck="false" placeholder="如 https://open.bigmodel.cn/api/paas/v4"/>
         </label>
         <label>向量模型
-          <input id="ssEmbedModel" type="text" spellcheck="false" placeholder="如 embedding-3 / bge-m3"/>
+          <input id="ssEmbedModel" type="text" spellcheck="false" placeholder="智谱填 embedding-3，BGE 填 bge-m3"/>
         </label>
         <label>向量 API Key
           <input id="ssEmbedKey" type="password" autocomplete="off" spellcheck="false" placeholder="留空则不修改"/>
@@ -628,7 +637,7 @@ export function mountTreeScene(rootEl) {
           <button type="button" id="ssEmbedTest">测试向量</button>
           <button type="button" id="ssEmbedClear">清除向量 Key</button>
         </div>
-        <p class="ss-ai-status" id="ssEmbedStatus">留空时 GLM 使用 embedding-3；DeepSeek 等无 /embeddings 的服务商会自动退回本地向量</p>
+        <p class="ss-ai-status" id="ssEmbedStatus">智谱填 Base URL .../v4 + 模型 embedding-3；不要填 GLM-4.5-Flash 等对话模型。留空时 GLM 使用 embedding-3，其它服务商退回本地向量</p>
       </div>
       <button type="button" class="ss-close" id="ssClose">关闭</button>
     </div>

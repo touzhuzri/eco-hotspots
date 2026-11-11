@@ -72,6 +72,33 @@ export function embedModelName() {
   return c.provider === "glm" ? "embedding-3" : "";
 }
 
+/**
+ * 向量 Base URL 允许两种常见填法：
+ *   - https://open.bigmodel.cn/api/paas/v4
+ *   - https://open.bigmodel.cn/api/paas/v4/chat/completions  （误把对话接口整段粘进来）
+ * 统一去掉末尾的 /chat/completions、/completions 或 /embeddings，再拼 /embeddings。
+ */
+export function normalizeEmbedBaseURL(value) {
+  let base = String(value || "").trim().replace(/\/+$/, "");
+  if (!base) return "";
+  base = base.replace(/\/(?:chat\/)?completions$/i, "");
+  base = base.replace(/\/embeddings$/i, "");
+  return base.replace(/\/+$/, "");
+}
+
+/**
+ * 向量 Key 的选取：
+ *   - 显式填了向量 Key 就用它；
+ *   - 向量和对话用同一个 Base URL 时，才允许复用对话 Key；
+ *   - 不同服务商（例如 DeepSeek 对话 + SiliconFlow 向量）必须单独填，避免拿错 Key。
+ */
+export function embeddingApiKey(c = configFn() || {}) {
+  if (c.embedApiKey) return c.embedApiKey;
+  const chatBase = normalizeEmbedBaseURL(c.baseURL || "");
+  const embedBase = normalizeEmbedBaseURL(c.embedBaseURL || c.baseURL || "");
+  return chatBase && embedBase === chatBase ? c.apiKey || "" : "";
+}
+
 // ── manifest ────────────────────────────────────────────────
 function ensureDir() {
   try {
@@ -342,9 +369,28 @@ async function embedBatch(texts, timeout = EMBED_TIMEOUT) {
   const c = configFn() || {};
   const model = embedModelName();
   if (!model) throw new Error("当前服务商未配置 embedding 模型（可用 AI_EMBED_MODEL 指定）");
-  const baseURL = String(c.embedBaseURL || c.baseURL || "").replace(/\/+$/, "");
-  const apiKey = c.embedApiKey || c.apiKey || "";
-  if (!apiKey || !baseURL) throw new Error("未配置向量 API Key / Base URL，无法向量化");
+  const baseURL = normalizeEmbedBaseURL(c.embedBaseURL || c.baseURL || "");
+  const apiKey = embeddingApiKey(c);
+  if (!apiKey || !baseURL) {
+    const separate =
+      normalizeEmbedBaseURL(c.embedBaseURL || "") &&
+      normalizeEmbedBaseURL(c.embedBaseURL || "") !==
+        normalizeEmbedBaseURL(c.baseURL || "");
+    throw new Error(
+      separate
+        ? "向量服务与对话服务不同，请在「向量 API Key」单独填写"
+        : "未配置向量 API Key / Base URL，无法向量化"
+    );
+  }
+  // 防止把对话模型误填进“向量模型”：GLM-4.5-Flash / deepseek-chat 等没有 embedding 能力
+  if (
+    /^(glm|gpt|o[1-9]|deepseek|claude|qwen|mimo|moonshot|doubao|gemini)/i.test(model) &&
+    !/embed/i.test(model)
+  ) {
+    throw new Error(
+      `“${model}”看起来是对话模型，不是向量模型；智谱请填 embedding-3，OpenAI 兼容可填 text-embedding-3-small 或 bge-m3`
+    );
+  }
   if (Date.now() < EMBED_DISABLED_UNTIL) {
     throw new Error("embedding 暂时不可用（额度/资源包），改用本地向量");
   }
@@ -362,14 +408,29 @@ async function embedBatch(texts, timeout = EMBED_TIMEOUT) {
     });
     const text = await res.text();
     if (!res.ok) {
-      if (
+      const quota =
         res.status === 429 ||
         res.status === 402 ||
-        /余额不足|资源包|额度|1113|quota|insufficient/i.test(text)
-      ) {
+        /余额不足|资源包|额度|1113|quota|insufficient/i.test(text);
+      if (quota) {
         EMBED_DISABLED_UNTIL = Date.now() + 10 * 60 * 1000;
       }
-      throw new Error(`embedding ${res.status}: ${text.slice(0, 200)}`);
+      const hints = [];
+      if (res.status === 404) {
+        hints.push(
+          "Base URL 只填到 /v4 或 /v1，不要带 /chat/completions 或 /embeddings"
+        );
+      }
+      if (quota) {
+        hints.push(
+          "向量额度/资源包不足；智谱 embedding-3 需要单独开通，不能复用对话模型额度"
+        );
+      }
+      if (res.status === 401 || res.status === 403) {
+        hints.push("检查向量 API Key 是否属于该服务商");
+      }
+      const hint = hints.length ? `（${hints.join("；")}）` : "";
+      throw new Error(`embedding ${res.status}: ${text.slice(0, 200)}${hint}`);
     }
     const j = JSON.parse(text);
     const data = [...(j.data || [])].sort(
@@ -399,6 +460,8 @@ async function embedBatchRetry(texts, attempts = 2) {
 
 /** 设置面板用：验证当前向量配置是否真的能返回向量 */
 export async function testEmbedding() {
+  // 手动测试时解除“额度不足”熔断，让用户充值后无需等待 10 分钟
+  EMBED_DISABLED_UNTIL = 0;
   const model = embedModelName();
   if (!model) throw new Error("还没有配置向量模型");
   const vecs = await embedBatch(["世界树天然产物知识库向量连通性测试"]);
@@ -464,6 +527,7 @@ async function embedDocument(id) {
       status: "ready",
       embedded: rec.embedded,
       dim: rec.dim,
+      vectorKind: "dense",
       embedError: "",
     });
     console.log(`[kb] embedded ${id} · ${rec.embedded} chunks · dim ${rec.dim}`);
@@ -486,6 +550,7 @@ async function embedDocument(id) {
       status: "local",
       embedded: rec.embedded,
       dim: rec.dim,
+      vectorKind: "local",
       embedError: rec.embedError,
     });
     console.warn(`[kb] local vectors ${id} (${reason})`);
@@ -685,6 +750,7 @@ function publicDoc(meta) {
     status: meta.status,
     embedded: meta.embedded || 0,
     dim: meta.dim || 0,
+    vectorKind: meta.vectorKind || "",
     embedError: meta.embedError || "",
     createdAt: meta.createdAt,
     truncated: !!meta.truncated,
@@ -708,6 +774,18 @@ export function kbStats() {
   const docs = listDocuments();
   const c = configFn() || {};
   const model = embedModelName();
+  const embedded = docs.filter((d) => (d.embedded || 0) > 0);
+  const kinds = new Set(embedded.map((d) => d.vectorKind || "local"));
+  // model 是“配置的模型”，modelActual 是“文档里实际存的向量”。
+  // 额度不足时配置仍是 embedding-3，但文档会退回 local-hash，不能把两者混为一谈。
+  let modelActual = model || "local-hash";
+  if (embedded.length && kinds.size === 1) {
+    modelActual = kinds.has("local") ? "local-hash" : model || "dense";
+  } else if (kinds.size > 1) {
+    modelActual = "mixed";
+  } else if (docs.some((d) => d.status === "pending")) {
+    modelActual = "pending";
+  }
   return {
     docs: docs.length,
     builtinDocs: docs.filter((d) => d.builtin).length,
@@ -717,10 +795,12 @@ export function kbStats() {
     localDocs: docs.filter((d) => d.status === "local").length,
     dim: docs.find((d) => d.dim)?.dim || 0,
     model: model || "local-hash",
+    modelActual,
+    vectorKind: kinds.size === 1 ? [...kinds][0] : kinds.size ? "mixed" : "none",
     embedReady: !!(
       model &&
       (c.embedBaseURL || c.baseURL) &&
-      (c.embedApiKey || c.apiKey)
+      embeddingApiKey(c)
     ),
   };
 }

@@ -35,10 +35,12 @@ import {
   addDocument,
   configureRag,
   embedModelName,
+  embeddingApiKey,
   ensureBuiltinKnowledge,
   formatKbContext,
   kbStats,
   listDocuments,
+  normalizeEmbedBaseURL,
   publicHits,
   reembedAll,
   removeDocument,
@@ -109,11 +111,31 @@ const PRESETS = {
     baseURL: "https://api.deepseek.com/v1",
     model: "deepseek-chat",
   },
+  dspro: {
+    baseURL: "https://api.deepseek.com/v1",
+    model: "deepseek-v4-pro",
+  },
+  dsflash: {
+    baseURL: "https://api.deepseek.com/v1",
+    model: "deepseek-flash",
+  },
   mimo: {
     baseURL: "https://api.xiaomimimo.com/v1",
     model: "mimo-v2-flash",
   },
   custom: { baseURL: "", model: "" },
+};
+
+/** 向量服务预设：可在设置面板一键填入 Base URL / 模型 */
+const EMBED_PRESETS = {
+  siliconflow: {
+    baseURL: "https://api.siliconflow.cn/v1",
+    model: "BAAI/bge-m3",
+  },
+  zhipu: {
+    baseURL: "https://open.bigmodel.cn/api/paas/v4",
+    model: "embedding-3",
+  },
 };
 
 function readJson(file) {
@@ -127,12 +149,12 @@ function readJson(file) {
 function loadConfig() {
   const file = readJson(CONFIG_FILE) || {};
   const env = {
-    provider: process.env.AI_PROVIDER || "glm",
+    provider: process.env.AI_PROVIDER || "dspro",
     baseURL: process.env.AI_BASE_URL || "",
     model: process.env.AI_MODEL || "",
     apiKey: process.env.AI_API_KEY || "",
   };
-  const provider = file.provider || env.provider || "glm";
+  const provider = file.provider || env.provider || "dspro";
   const preset = PRESETS[provider] || PRESETS.custom;
   return {
     provider,
@@ -164,8 +186,8 @@ let THINKING_SUPPORTED = (() => {
 
 function embeddingInfo() {
   const model = embedModelName();
-  const baseURL = CONFIG.embedBaseURL || CONFIG.baseURL || "";
-  const hasKey = !!(CONFIG.embedApiKey || CONFIG.apiKey);
+  const baseURL = normalizeEmbedBaseURL(CONFIG.embedBaseURL || CONFIG.baseURL || "");
+  const hasKey = !!embeddingApiKey(CONFIG);
   return {
     model: model || "local-hash",
     configuredModel: CONFIG.embedModel || "",
@@ -184,11 +206,12 @@ function publicConfig() {
     hasKey: !!CONFIG.apiKey,
     ready: !!(CONFIG.apiKey && CONFIG.baseURL && CONFIG.model),
     presets: PRESETS,
+    embedPresets: EMBED_PRESETS,
     visionBaseURL: CONFIG.visionBaseURL || "",
     visionModel: CONFIG.visionModel || "",
     hasVisionKey: !!CONFIG.visionApiKey,
     visionReady: visionReady(),
-    embedBaseURL: CONFIG.embedBaseURL || "",
+    embedBaseURL: normalizeEmbedBaseURL(CONFIG.embedBaseURL || ""),
     embedModel: CONFIG.embedModel || "",
     embedModelEffective: embed.model,
     hasEmbedKey: embed.hasKey,
@@ -328,7 +351,7 @@ function saveConfig(patch) {
   }
   if (patch.clearVisionKey) next.visionApiKey = "";
   if (patch.embedBaseURL != null) {
-    next.embedBaseURL = String(patch.embedBaseURL).trim();
+    next.embedBaseURL = normalizeEmbedBaseURL(patch.embedBaseURL);
   }
   if (patch.embedModel != null) {
     next.embedModel = String(patch.embedModel).trim();

@@ -14,11 +14,30 @@ const DEFAULTS = {
     baseURL: "https://api.deepseek.com/v1",
     model: "deepseek-chat",
   },
+  dspro: {
+    baseURL: "https://api.deepseek.com/v1",
+    model: "deepseek-v4-pro",
+  },
+  dsflash: {
+    baseURL: "https://api.deepseek.com/v1",
+    model: "deepseek-flash",
+  },
   mimo: {
     baseURL: "https://api.xiaomimimo.com/v1",
     model: "mimo-v2-flash",
   },
   custom: { baseURL: "", model: "" },
+};
+
+const EMBED_DEFAULTS = {
+  siliconflow: {
+    baseURL: "https://api.siliconflow.cn/v1",
+    model: "BAAI/bge-m3",
+  },
+  zhipu: {
+    baseURL: "https://open.bigmodel.cn/api/paas/v4",
+    model: "embedding-3",
+  },
 };
 
 export function mountAiSettings(panel) {
@@ -36,6 +55,7 @@ export function mountAiSettings(panel) {
   const visionStatusEl = panel.querySelector("#ssVisionStatus");
   const visionTestEl = panel.querySelector("#ssVisionTest");
   const visionClearEl = panel.querySelector("#ssVisionClear");
+  const embedPresetEl = panel.querySelector("#ssEmbedPreset");
   const embedBaseEl = panel.querySelector("#ssEmbedBase");
   const embedModelEl = panel.querySelector("#ssEmbedModel");
   const embedKeyEl = panel.querySelector("#ssEmbedKey");
@@ -45,6 +65,7 @@ export function mountAiSettings(panel) {
   if (!providerEl || !baseEl || !modelEl || !keyEl || !statusEl) return null;
 
   let presets = DEFAULTS;
+  let embedPresets = EMBED_DEFAULTS;
   let hasKey = false;
   let hasVisionKey = false;
   let hasEmbedKey = false;
@@ -66,9 +87,31 @@ export function mountAiSettings(panel) {
     embedStatusEl.className = `ss-ai-status${kind ? ` ${kind}` : ""}`;
   }
 
+  function embedPresetKey() {
+    const base = String(embedBaseEl?.value || "")
+      .trim()
+      .replace(/\/+$/, "")
+      .toLowerCase();
+    const model = String(embedModelEl?.value || "").trim();
+    for (const [key, p] of Object.entries(embedPresets || {})) {
+      if (
+        String(p.baseURL || "").replace(/\/+$/, "").toLowerCase() === base &&
+        String(p.model || "") === model
+      ) {
+        return key;
+      }
+    }
+    return "";
+  }
+
+  function syncEmbedPreset() {
+    if (embedPresetEl) embedPresetEl.value = embedPresetKey();
+  }
+
   function applyConfig(cfg) {
     if (!cfg) return;
     if (cfg.presets) presets = cfg.presets;
+    if (cfg.embedPresets) embedPresets = cfg.embedPresets;
     if ([...providerEl.options].some((o) => o.value === cfg.provider)) {
       providerEl.value = cfg.provider;
     }
@@ -103,6 +146,7 @@ export function mountAiSettings(panel) {
 
     if (embedBaseEl) embedBaseEl.value = cfg.embedBaseURL || "";
     if (embedModelEl) embedModelEl.value = cfg.embedModel || "";
+    syncEmbedPreset();
     hasEmbedKey = !!cfg.hasEmbedKey;
     if (embedKeyEl) {
       embedKeyEl.value = "";
@@ -112,7 +156,7 @@ export function mountAiSettings(panel) {
     }
     const effective = cfg.embedModelEffective || "local-hash";
     if (cfg.embedReady) {
-      embedStatus(`向量已就绪 · ${effective}`, "ok");
+      embedStatus(`向量已配置 · ${effective}（点「测试向量」确认额度）`, "ok");
     } else if (cfg.embedModel) {
       embedStatus("已填向量模型，但缺少 Base URL / Key，将退回本地向量", "err");
     } else {
@@ -146,6 +190,19 @@ export function mountAiSettings(panel) {
   });
   baseEl.addEventListener("input", () => (baseEl.dataset.auto = "0"));
   modelEl.addEventListener("input", () => (modelEl.dataset.auto = "0"));
+
+  embedPresetEl?.addEventListener("change", () => {
+    const p = embedPresets[embedPresetEl.value];
+    if (!p) return;
+    if (embedBaseEl) embedBaseEl.value = p.baseURL;
+    if (embedModelEl) embedModelEl.value = p.model;
+    embedStatus(
+      `已填入 ${p.model}；点「测试向量」确认 Key 与免费额度`,
+      ""
+    );
+  });
+  embedBaseEl?.addEventListener("input", syncEmbedPreset);
+  embedModelEl?.addEventListener("input", syncEmbedPreset);
 
   async function pushConfig() {
     const res = await fetch("/api/ai/config", {
