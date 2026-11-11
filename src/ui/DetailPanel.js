@@ -70,7 +70,7 @@ function welcomeHtml() {
   const today = todayPoint();
   return `
     <div class="detail-empty welcome">
-      <span class="welcome-kicker">华中农业大学 · LOTUS</span>
+      <span class="welcome-kicker">天然产物 · LOTUS</span>
       <h2>世界树 · 天然产物</h2>
       <p class="welcome-lead">
         一棵由 <strong>${nStruct.toLocaleString("zh-CN")}</strong> 个天然产物结构构成的世界树。
