@@ -36,11 +36,18 @@ export function mountAiSettings(panel) {
   const visionStatusEl = panel.querySelector("#ssVisionStatus");
   const visionTestEl = panel.querySelector("#ssVisionTest");
   const visionClearEl = panel.querySelector("#ssVisionClear");
+  const embedBaseEl = panel.querySelector("#ssEmbedBase");
+  const embedModelEl = panel.querySelector("#ssEmbedModel");
+  const embedKeyEl = panel.querySelector("#ssEmbedKey");
+  const embedStatusEl = panel.querySelector("#ssEmbedStatus");
+  const embedTestEl = panel.querySelector("#ssEmbedTest");
+  const embedClearEl = panel.querySelector("#ssEmbedClear");
   if (!providerEl || !baseEl || !modelEl || !keyEl || !statusEl) return null;
 
   let presets = DEFAULTS;
   let hasKey = false;
   let hasVisionKey = false;
+  let hasEmbedKey = false;
 
   function status(text, kind = "") {
     statusEl.textContent = text;
@@ -51,6 +58,12 @@ export function mountAiSettings(panel) {
     if (!visionStatusEl) return;
     visionStatusEl.textContent = text;
     visionStatusEl.className = `ss-ai-status${kind ? ` ${kind}` : ""}`;
+  }
+
+  function embedStatus(text, kind = "") {
+    if (!embedStatusEl) return;
+    embedStatusEl.textContent = text;
+    embedStatusEl.className = `ss-ai-status${kind ? ` ${kind}` : ""}`;
   }
 
   function applyConfig(cfg) {
@@ -86,6 +99,27 @@ export function mountAiSettings(panel) {
       visionStatus("已填视觉模型，但缺少可用的 Key", "err");
     } else {
       visionStatus("留空表示复用上面的对话服务商；纯文本模型无法识图", "");
+    }
+
+    if (embedBaseEl) embedBaseEl.value = cfg.embedBaseURL || "";
+    if (embedModelEl) embedModelEl.value = cfg.embedModel || "";
+    hasEmbedKey = !!cfg.hasEmbedKey;
+    if (embedKeyEl) {
+      embedKeyEl.value = "";
+      embedKeyEl.placeholder = hasEmbedKey
+        ? "已配置，留空不修改"
+        : "填入向量服务 Key";
+    }
+    const effective = cfg.embedModelEffective || "local-hash";
+    if (cfg.embedReady) {
+      embedStatus(`向量已就绪 · ${effective}`, "ok");
+    } else if (cfg.embedModel) {
+      embedStatus("已填向量模型，但缺少 Base URL / Key，将退回本地向量", "err");
+    } else {
+      embedStatus(
+        `当前为 ${effective}；可单独配置支持 /embeddings 的服务商`,
+        ""
+      );
     }
   }
 
@@ -125,6 +159,9 @@ export function mountAiSettings(panel) {
         visionBaseURL: visionBaseEl?.value.trim() || "",
         visionModel: visionModelEl?.value.trim() || "",
         visionApiKey: visionKeyEl?.value.trim() || "",
+        embedBaseURL: embedBaseEl?.value.trim() || "",
+        embedModel: embedModelEl?.value.trim() || "",
+        embedApiKey: embedKeyEl?.value.trim() || "",
       }),
     });
     const data = await res.json().catch(() => ({}));
@@ -252,10 +289,64 @@ export function mountAiSettings(panel) {
     }
   }
 
+  async function testEmbed() {
+    if (!embedTestEl) return;
+    embedTestEl.disabled = true;
+    embedStatus("保存配置并测试向量接口…");
+    try {
+      await pushConfig();
+      const res = await fetch("/api/ai/embed-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      embedStatus(
+        `向量正常 · ${data.model || ""} · ${data.dim || 0} 维`,
+        "ok"
+      );
+    } catch (err) {
+      embedStatus(
+        `向量测试失败：${String(err.message || err).slice(0, 240)}`,
+        "err"
+      );
+    } finally {
+      embedTestEl.disabled = false;
+    }
+  }
+
+  async function clearEmbedKey() {
+    if (!window.confirm("清除已保存的向量 API Key？")) return;
+    try {
+      const res = await fetch("/api/ai/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clearEmbedKey: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      applyConfig(data.config);
+      window.dispatchEvent(new Event("eco:ai-config-changed"));
+      embedStatus("已清除向量 API Key", "");
+    } catch (err) {
+      embedStatus(
+        `清除失败：${String(err.message || err).slice(0, 200)}`,
+        "err"
+      );
+    }
+  }
+
   saveEl.addEventListener("click", save);
   testEl.addEventListener("click", test);
   visionTestEl?.addEventListener("click", testVision);
   visionClearEl?.addEventListener("click", clearVisionKey);
+  embedTestEl?.addEventListener("click", testEmbed);
+  embedClearEl?.addEventListener("click", clearEmbedKey);
   loadConfig();
 
   return { reload: loadConfig };

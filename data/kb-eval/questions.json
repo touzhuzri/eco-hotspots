@@ -1,0 +1,62 @@
+[
+  {
+    "q": "LOTUS 数据集包含多少条天然产物？",
+    "doc": "LOTUS 数据集卡片",
+    "keywords": ["227"]
+  },
+  {
+    "q": "LOTUS 的数据字段包括哪些？",
+    "doc": "LOTUS 数据集卡片",
+    "keywords": ["InChIKey"]
+  },
+  {
+    "q": "LOTUS 的版本快照是什么？",
+    "doc": "LOTUS 数据集卡片",
+    "keywords": ["260413"]
+  },
+  {
+    "q": "LOTUS 论文发表在哪个期刊？",
+    "doc": "Rutz 2022 LOTUS（eLife）",
+    "keywords": ["eLife"]
+  },
+  {
+    "q": "LOTUS 论文的 DOI 是什么？",
+    "doc": "Rutz 2022 LOTUS（eLife）",
+    "keywords": ["10.7554"]
+  },
+  {
+    "q": "ClassyFire 用来做什么？",
+    "doc": "ClassyFire 2016",
+    "keywords": ["分类"]
+  },
+  {
+    "q": "NPClassifier 的核心方法是什么？",
+    "doc": "NPClassifier 2021",
+    "keywords": ["深度", "神经网络"]
+  },
+  {
+    "q": "COCONUT 2.0 重点改进了哪些数据质量？",
+    "doc": "COCONUT 2.0（NAR 2024）",
+    "keywords": ["去重"]
+  },
+  {
+    "q": "ChEBI 是什么数据库？",
+    "doc": "ChEBI",
+    "keywords": ["本体"]
+  },
+  {
+    "q": "PubChem 可以查什么？",
+    "doc": "PubChem",
+    "keywords": ["化合物"]
+  },
+  {
+    "q": "RDKit 在本项目里承担什么工作？",
+    "doc": "RDKit 文档",
+    "keywords": ["Morgan", "指纹"]
+  },
+  {
+    "q": "Three.js 在世界树里用来做什么？",
+    "doc": "Three.js 文档",
+    "keywords": ["WebGL"]
+  }
+]

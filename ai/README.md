@@ -46,7 +46,7 @@ node deploy/site-server.mjs
 
 AI 代理没有 npm 依赖，使用 Node 内置 `fetch`，要求 Node 20.12+（当前项目 Node 24）。
 
-工具调用轮次上限默认 **8 轮**（演示期放宽；正式部署可在 `ai/.env` 里用 `AI_MAX_TOOL_ROUNDS=4` 调回）。`/api/ai/health` 会返回当前 `maxToolRounds`；每轮工具调用会写到 `logs/ai.log`。
+工具调用轮次上限默认 **16 轮**（复杂研究任务可多步查询；正式部署可在 `ai/.env` 里用 `AI_MAX_TOOL_ROUNDS=6` 调回）。`/api/ai/health` 会返回当前 `maxToolRounds`；每轮工具调用会写到 `logs/ai.log`。
 
 ## 3. 服务商
 
@@ -187,6 +187,36 @@ POST /api/ai/vision-test
 
 `/api/ai/health` 里的 `vision` / `visionReady` 会显示当前视觉模型和是否就绪。
 
+## 5.3 研究任务模式
+
+在 AI 坞输入框旁点「研究」，或在能力 chips 里点「研究任务」，请求会带 `mode: "research"`：
+
+1. 服务端先让规划器输出 2–4 步 JSON 计划，通过 SSE `plan` 事件下发；
+2. 计划作为约束交给执行模型，工具调用时通过 SSE `step` 事件更新每一步状态；
+3. 回答结束后，前端出现「导出研究简报」，可下载包含问题、计划、结论、工具记录、图表和来源的 Markdown；
+4. 回答过程中可以点「■」停止本轮请求。
+
+规划器失败时自动使用本地兜底计划，不影响正常回答。`mode` 不传或传 `chat` 时保持原来的单轮/多轮工具对话。
+
+## 5.4 独立向量配置与 RAG 评测
+
+对话模型和向量模型可以分开配置：
+
+- 设置面板 →「知识库 / 向量模型」填 Base URL、模型（如 `embedding-3` / `bge-m3`）和 Key；
+- 也可以写 `AI_EMBED_BASE_URL` / `AI_EMBED_MODEL` / `AI_EMBED_API_KEY`；
+- 切换后点知识库面板的「重建向量」，或 `POST /api/ai/kb/reembed`。
+
+`POST /api/ai/embed-test` 用当前配置发一条最小向量请求，返回模型和维度。`GET /api/ai/health` 的 `embedding` / `kb.embedReady` 会显示是否真的走神经向量；没有可用配置时自动退回本地 768 维特征哈希 + BM25，不会中断检索。
+
+评测：
+
+```bash
+node scripts/rag-eval.mjs
+# AI_EVAL_BASE=http://127.0.0.1:5173 AI_EVAL_LIMIT=5 node scripts/rag-eval.mjs
+```
+
+评测集在 `data/kb-eval/questions.json`，输出 Hit@4、MRR、关键词命中率。基线结果见 `docs/rag-eval.md`。
+
 ## 6. 当前 Step 1 能力
 
 - `/api/ai/health`：服务状态、是否配置 Key、相似索引是否加载
@@ -198,6 +228,8 @@ POST /api/ai/vision-test
 - `/api/ai/models`：列出当前服务商的模型 ID
 - `/api/ai/kb` GET/POST/DELETE：知识库列表、上传、删除
 - `/api/ai/kb/search?q=...`：直接测试知识库召回
+- `/api/ai/kb/reembed`：用当前向量配置重建全部文档向量
+- `/api/ai/embed-test`：测试向量接口连通性和维度
 - `/api/ai/similar?inchikey=...`：直接测试相似分子
 
 工具：

@@ -612,6 +612,24 @@ export function mountTreeScene(rootEl) {
         </div>
         <p class="ss-ai-status" id="ssVisionStatus">留空表示复用上面的对话服务商</p>
       </div>
+      <div class="ss-sep"></div>
+      <div class="ss-title ss-ai-title">知识库 / 向量模型</div>
+      <div class="ss-ai">
+        <label>向量 Base URL
+          <input id="ssEmbedBase" type="text" spellcheck="false" placeholder="留空复用上面的 Base URL"/>
+        </label>
+        <label>向量模型
+          <input id="ssEmbedModel" type="text" spellcheck="false" placeholder="如 embedding-3 / bge-m3"/>
+        </label>
+        <label>向量 API Key
+          <input id="ssEmbedKey" type="password" autocomplete="off" spellcheck="false" placeholder="留空则不修改"/>
+        </label>
+        <div class="ss-ai-actions">
+          <button type="button" id="ssEmbedTest">测试向量</button>
+          <button type="button" id="ssEmbedClear">清除向量 Key</button>
+        </div>
+        <p class="ss-ai-status" id="ssEmbedStatus">留空时 GLM 使用 embedding-3；DeepSeek 等无 /embeddings 的服务商会自动退回本地向量</p>
+      </div>
       <button type="button" class="ss-close" id="ssClose">关闭</button>
     </div>
   `;

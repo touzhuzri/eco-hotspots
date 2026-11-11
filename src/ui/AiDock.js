@@ -105,6 +105,11 @@ const INTRO_OPTIONS = [
     image: true,
     title: "结构式、论文图表、实验照片都可以先识别再核对",
   },
+  {
+    label: "研究任务",
+    research: true,
+    title: "多步规划、工具执行，并生成可导出的研究简报",
+  },
 ];
 
 const CAPABILITIES = [
@@ -135,7 +140,22 @@ const CAPABILITIES = [
     label: "带出处解释",
     prompt: "解释黄酮类分子的来源和分类，并注明 LOTUS 出处",
   },
+  {
+    label: "研究任务",
+    research: true,
+    title: "多步规划、工具执行，并生成可导出的研究简报",
+  },
 ];
+
+const TOOL_LABELS = {
+  query_molecules: "查询 LOTUS",
+  find_similar: "相似分子",
+  render_chart: "生成图表",
+  scene_action: "场景动作",
+  explain: "读取元数据",
+  web_search: "联网搜索",
+  search_knowledge: "检索知识库",
+};
 
 export function mountAiDock(el, { scene } = {}) {
   if (!el) return null;
@@ -160,6 +180,7 @@ export function mountAiDock(el, { scene } = {}) {
         </div>
         <div class="ai-kb-actions">
           <button type="button" class="ai-kb-upload-btn" id="aiKbUpload">＋ 上传文档</button>
+          <button type="button" class="ai-kb-upload-btn" id="aiKbReembed" title="切换向量模型后，用当前配置重建全部文档向量">重建向量</button>
           <em id="aiKbHint">支持 PDF / Word / Excel / PPT / CSV / TXT</em>
         </div>
         <div class="ai-kb-list" id="aiKbList"></div>
@@ -184,7 +205,9 @@ export function mountAiDock(el, { scene } = {}) {
                           ? `data-ai-kb="1"`
                           : c.random
                             ? `data-ai-random="1"`
-                            : `data-ai-suggest="${esc(c.prompt)}"`
+                            : c.research
+                              ? `data-ai-research="1"`
+                              : `data-ai-suggest="${esc(c.prompt)}"`
                   }${c.title ? ` title="${esc(c.title)}"` : ""}>${esc(
                     c.label
                   )}</button>`
@@ -203,7 +226,9 @@ export function mountAiDock(el, { scene } = {}) {
                           ? `data-ai-kb="1"`
                           : o.random
                             ? `data-ai-random="1"`
-                            : `data-ai-suggest="${esc(o.prompt)}"`
+                            : o.research
+                              ? `data-ai-research="1"`
+                              : `data-ai-suggest="${esc(o.prompt)}"`
                   }${o.title ? ` title="${esc(o.title)}"` : ""}>${esc(
                     o.label
                   )}</button>`
@@ -228,6 +253,8 @@ export function mountAiDock(el, { scene } = {}) {
         <span class="ai-dock-spark" aria-hidden="true">✦</span>
         <button type="button" class="ai-dock-upload" id="aiUpload" title="上传 PDF / Word / Excel / PPT / CSV / 文本">📎</button>
         <textarea id="aiInput" rows="1" placeholder="问点什么：例如「找出抗氧化的黄酮，按来源科分布」"></textarea>
+        <button type="button" class="ai-dock-mode" id="aiResearchMode" aria-pressed="false" title="多步规划、工具执行并生成可导出的研究简报">研究</button>
+        <button type="button" class="ai-dock-stop" id="aiStop" title="停止本轮回答" hidden>■</button>
         <button type="submit" class="ai-dock-send" id="aiSend" title="发送">↑</button>
       </form>
 
@@ -240,6 +267,8 @@ export function mountAiDock(el, { scene } = {}) {
   const form = el.querySelector("#aiForm");
   const input = el.querySelector("#aiInput");
   const sendBtn = el.querySelector("#aiSend");
+  const researchBtn = el.querySelector("#aiResearchMode");
+  const stopBtn = el.querySelector("#aiStop");
   const attach = el.querySelector("#aiAttach");
   const fileInput = el.querySelector("#aiFile");
   const kbBtn = el.querySelector("#aiKbBtn");
@@ -247,6 +276,7 @@ export function mountAiDock(el, { scene } = {}) {
   const kbList = el.querySelector("#aiKbList");
   const kbCount = el.querySelector("#aiKbCount");
   const kbFile = el.querySelector("#aiKbFile");
+  const kbReembed = el.querySelector("#aiKbReembed");
   const suggestions = el.querySelector("#aiSuggestions");
   const collapseBtn = el.querySelector("#aiCollapse");
   const statusBadge = el.querySelector("#aiStatusBadge");
@@ -256,6 +286,20 @@ export function mountAiDock(el, { scene } = {}) {
   const pendingCancel = el.querySelector("#aiPendingCancel");
   const chatHistory = [];
   let pendingAction = null;
+  let researchMode = false;
+  let activeAbort = null;
+
+  function setResearchMode(value) {
+    researchMode = !!value;
+    researchBtn?.classList.toggle("is-active", researchMode);
+    researchBtn?.setAttribute("aria-pressed", String(researchMode));
+    if (researchMode) {
+      input.placeholder =
+        "研究任务：例如「对比黄酮和生物碱的来源科分布，并给出可引用简报」";
+    } else {
+      input.placeholder = "问点什么：例如「找出抗氧化的黄酮，按来源科分布」";
+    }
+  }
 
   // 打开时的透明点击遮罩：只负责拦住背后交互 + 点击收起
   const backdrop = document.createElement("div");
@@ -292,9 +336,14 @@ export function mountAiDock(el, { scene } = {}) {
     sendBtn.disabled = value;
     sendBtn.textContent = value ? "…" : "↑";
     sendBtn.title = value ? "AI 正在回答，请稍候" : "发送";
+    if (stopBtn) stopBtn.hidden = !value;
     form.classList.toggle("is-answering", value);
     input.setAttribute("aria-busy", value ? "true" : "false");
   }
+
+  stopBtn?.addEventListener("click", () => {
+    activeAbort?.abort();
+  });
 
   function markAiActive() {
     window.__aiLastActive = performance.now();
@@ -461,8 +510,9 @@ export function mountAiDock(el, { scene } = {}) {
       attach.hidden = true;
       attach.innerHTML = "";
       fileInput.value = "";
-      input.placeholder =
-        "问点什么：例如「找出抗氧化的黄酮，按来源科分布」";
+      input.placeholder = researchMode
+        ? "研究任务：例如「对比黄酮和生物碱的来源科分布，并给出可引用简报」"
+        : "问点什么：例如「找出抗氧化的黄酮，按来源科分布」";
     });
     parsePromise = parseFile(file).then((res) => {
       if (seq !== parseSeq) return res;
@@ -587,6 +637,7 @@ export function mountAiDock(el, { scene } = {}) {
         <summary><span>思考过程</span><em></em></summary>
         <div class="ai-think-body"></div>
       </details>
+      <div class="ai-plan" hidden></div>
       <div class="ai-live-status">AI 正在分析…</div>
       <div class="ai-live-tools"></div>
       <div class="ai-live-cards"></div>
@@ -597,6 +648,7 @@ export function mountAiDock(el, { scene } = {}) {
     return {
       div,
       status: div.querySelector(".ai-live-status"),
+      plan: div.querySelector(".ai-plan"),
       tools: div.querySelector(".ai-live-tools"),
       cards: div.querySelector(".ai-live-cards"),
       text: div.querySelector(".ai-live-text"),
@@ -604,7 +656,145 @@ export function mountAiDock(el, { scene } = {}) {
       think: div.querySelector(".ai-think"),
       thinkMeta: div.querySelector(".ai-think summary em"),
       thinkBody: div.querySelector(".ai-think-body"),
+      sources: [],
+      toolLog: [],
+      charts: [],
     };
+  }
+
+  function renderPlan(live, event) {
+    if (!live?.plan || !Array.isArray(event?.steps) || !event.steps.length) {
+      return;
+    }
+    live._plan = {
+      goal: String(event.goal || "研究任务"),
+      steps: event.steps.map((s) => ({
+        title: String(s.title || "研究步骤"),
+        tool: String(s.tool || "none"),
+      })),
+    };
+    live.plan.hidden = false;
+    live.plan.innerHTML = `
+      <div class="ai-plan-head">
+        <span>研究计划</span>
+        <b>${esc(live._plan.goal)}</b>
+      </div>
+      <ol class="ai-plan-steps">
+        ${live._plan.steps
+          .map(
+            (s, i) => `<li data-step="${i}" class="is-pending">
+              <i></i><span>${esc(s.title)}</span>
+              <em>${esc(TOOL_LABELS[s.tool] || (s.tool === "none" ? "整理" : s.tool))}</em>
+            </li>`
+          )
+          .join("")}
+      </ol>`;
+    scrollBottom();
+  }
+
+  function updatePlanStep(live, event) {
+    const li = live?.plan?.querySelector(
+      `[data-step="${Number(event?.index)}"]`
+    );
+    if (!li) return;
+    const status = ["running", "done", "error"].includes(event.status)
+      ? event.status
+      : "pending";
+    li.classList.remove("is-pending", "is-running", "is-done", "is-error");
+    li.classList.add(`is-${status}`);
+    if (event.detail) {
+      const em = li.querySelector("em");
+      if (em) em.textContent = String(event.detail).slice(0, 60);
+    }
+  }
+
+  function finishPlan(live) {
+    if (!live?.plan || live.plan.hidden) return;
+    live.plan.querySelectorAll("li.is-running").forEach((li) => {
+      li.classList.remove("is-running");
+      li.classList.add("is-done");
+    });
+    live.plan.querySelectorAll("li.is-pending").forEach((li) => {
+      li.classList.remove("is-pending");
+      li.classList.add("is-skipped");
+    });
+  }
+
+  function addReportButton(live, payload) {
+    if (!live?.actions || !live._plan) return;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "ai-report-btn";
+    btn.textContent = "导出研究简报";
+    btn.title = "下载 Markdown：问题、计划、结论、工具记录与来源";
+    btn.addEventListener("click", () => downloadReport(payload));
+    live.actions.appendChild(btn);
+  }
+
+  function downloadReport({ userText, answer, plan, sources, tools, charts }) {
+    const now = new Date();
+    const stamp = now.toISOString().slice(0, 10);
+    const lines = [
+      `# 世界树研究简报：${plan?.goal || userText.slice(0, 60)}`,
+      "",
+      `- 生成时间：${now.toLocaleString("zh-CN")}`,
+      `- 数据底座：LOTUS frozen 260413`,
+      `- 说明：仅作科学传播与教学演示，不构成用药建议。`,
+      "",
+      "## 研究问题",
+      "",
+      userText,
+      "",
+      "## 研究计划",
+      "",
+      ...(plan?.steps || []).map(
+        (s, i) =>
+          `${i + 1}. ${s.title}${s.tool && s.tool !== "none" ? `（${TOOL_LABELS[s.tool] || s.tool}）` : ""}`
+      ),
+      "",
+      "## 结论",
+      "",
+      answer || "（本轮没有生成正文）",
+      "",
+      "## 工具记录",
+      "",
+      ...(tools?.length
+        ? tools.map((t) => `- ${t.name}：${t.summary || "已执行"}`)
+        : ["- 无"]),
+      "",
+      "## 图表",
+      "",
+      ...(charts?.length
+        ? charts.map((c) => `- ${c.title || "图表"}（${c.type || "chart"}）`)
+        : ["- 无"]),
+      "",
+      "## 来源",
+      "",
+      ...(sources?.length
+        ? sources.map(
+            (s) =>
+              `- 【${s.tag || s.sourceType || "资料"}】《${s.name}》第 ${s.chunk} 段${
+                s.score != null ? `（相关度 ${Math.round(Number(s.score) * 100)}%）` : ""
+              }`
+          )
+        : ["- 本轮没有引用知识库段落；LOTUS 统计以工具返回为准。"]),
+      "",
+      "---",
+      "",
+      "由「世界树 · LOTUS AI 分析」生成。论文/网站引用请回到对话中的原始链接核对。",
+      "",
+    ];
+    const blob = new Blob([lines.join("\n")], {
+      type: "text/markdown;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `世界树研究简报-${stamp}.md`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   function addSceneProposal(live, event) {
@@ -658,15 +848,6 @@ export function mountAiDock(el, { scene } = {}) {
   pendingCancel.addEventListener("click", clearPending);
 
   function addToolChip(live, name, result) {
-    const labels = {
-      query_molecules: "查询 LOTUS",
-      find_similar: "相似分子",
-      render_chart: "生成图表",
-      scene_action: "场景动作",
-      explain: "读取元数据",
-      web_search: "联网搜索",
-      search_knowledge: "检索知识库",
-    };
     let summary = "";
     if (name === "query_molecules" && result?.ok) {
       summary = `${result.count ?? 0} 颗`;
@@ -698,8 +879,12 @@ export function mountAiDock(el, { scene } = {}) {
       live.tools.innerHTML = `<div class="ai-trace"></div>`;
     }
     const span = document.createElement("span");
-    span.textContent = `${labels[name] || name}${summary ? ` · ${summary}` : ""}`;
+    span.textContent = `${TOOL_LABELS[name] || name}${summary ? ` · ${summary}` : ""}`;
     live.tools.firstChild.appendChild(span);
+    live.toolLog.push({
+      name: TOOL_LABELS[name] || name,
+      summary: summary || (result?.ok === false ? "失败" : "已执行"),
+    });
   }
 
   /** 知识库引用：按 文档 + 段落 去重，折叠显示原文片段 */
@@ -728,6 +913,13 @@ export function mountAiDock(el, { scene } = {}) {
             ? "论文"
             : "网站"
         : "我的";
+      live.sources.push({
+        name: it.name,
+        chunk: it.chunk,
+        sourceType: it.sourceType,
+        tag,
+        score: it.score,
+      });
       card.innerHTML = `
         <summary>
           <span class="ai-kb-tag is-${esc(it.sourceType || "user")}">${tag}</span>
@@ -886,6 +1078,8 @@ export function mountAiDock(el, { scene } = {}) {
 
   async function streamChat(userText, file, parsed) {
     const live = createLiveMessage();
+    const ac = new AbortController();
+    activeAbort = ac;
     let finalText = "";
     let thinkText = "";
     let hadError = false;
@@ -907,6 +1101,7 @@ export function mountAiDock(el, { scene } = {}) {
           }
         : {};
       const payload = { messages: chatHistory, context };
+      if (researchMode) payload.mode = "research";
       if (file && parsed?.kind === "image" && parsed.dataUrl) {
         payload.images = [
           {
@@ -929,6 +1124,7 @@ export function mountAiDock(el, { scene } = {}) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        signal: ac.signal,
       });
       if (!res.ok || !res.body) {
         let detail = "";
@@ -963,6 +1159,10 @@ export function mountAiDock(el, { scene } = {}) {
           if (event.type === "status") {
             live.status.hidden = false;
             live.status.textContent = event.text || "AI 正在分析…";
+          } else if (event.type === "plan") {
+            renderPlan(live, event);
+          } else if (event.type === "step") {
+            updatePlanStep(live, event);
           } else if (event.type === "think") {
             thinkText += event.text || "";
             live.think.hidden = false;
@@ -986,9 +1186,12 @@ export function mountAiDock(el, { scene } = {}) {
           } else if (event.type === "source") {
             addSources(live, event.items);
           } else if (event.type === "chart") {
+            live.charts.push(event.spec);
             live.cards.insertAdjacentHTML("beforeend", chartHtml(event.spec));
           } else if (event.type === "scene") {
             addSceneProposal(live, event);
+          } else if (event.type === "done") {
+            finishPlan(live);
           } else if (event.type === "error") {
             hadError = true;
             live.status.textContent = "分析失败";
@@ -1007,21 +1210,37 @@ export function mountAiDock(el, { scene } = {}) {
       if (finalText.trim() && !hadError) {
         chatHistory.push({ role: "assistant", content: finalText.trim() });
       }
+      if (live._plan && finalText.trim() && !hadError) {
+        addReportButton(live, {
+          userText,
+          answer: finalText.trim(),
+          plan: live._plan,
+          sources: live.sources,
+          tools: live.toolLog,
+          charts: live.charts,
+        });
+      }
       if (!finalText.trim() || hadError) addRetry();
       scrollBottom();
     } catch (err) {
       live.status.remove();
-      const message = await friendlyChatError(err);
+      const aborted =
+        err?.name === "AbortError" || /aborted|abort/i.test(String(err?.message));
+      const message = aborted
+        ? "已停止本轮回答。"
+        : await friendlyChatError(err);
       live.text.innerHTML = `<p class="ai-error">${esc(message)}</p>`;
       if (live.tools.firstChild) {
         live.tools.firstChild.insertAdjacentHTML(
           "beforeend",
-          "<span>请求失败</span>"
+          `<span>${aborted ? "已停止" : "请求失败"}</span>`
         );
       }
       addRetry();
       scrollBottom();
-      console.warn("[ai-dock]", err);
+      if (!aborted) console.warn("[ai-dock]", err);
+    } finally {
+      if (activeAbort === ac) activeAbort = null;
     }
   }
 
@@ -1086,8 +1305,9 @@ export function mountAiDock(el, { scene } = {}) {
         attach.hidden = true;
         attach.innerHTML = "";
         fileInput.value = "";
-        input.placeholder =
-          "问点什么：例如「找出抗氧化的黄酮，按来源科分布」";
+        input.placeholder = researchMode
+          ? "研究任务：例如「对比黄酮和生物碱的来源科分布，并给出可引用简报」"
+          : "问点什么：例如「找出抗氧化的黄酮，按来源科分布」";
       }
       input.value = "";
       input.style.height = "auto";
@@ -1170,6 +1390,10 @@ export function mountAiDock(el, { scene } = {}) {
     input.style.height = "auto";
     input.style.height = `${Math.min(120, input.scrollHeight)}px`;
   });
+  researchBtn?.addEventListener("click", () => {
+    setResearchMode(!researchMode);
+    input.focus();
+  });
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     submit();
@@ -1213,6 +1437,31 @@ export function mountAiDock(el, { scene } = {}) {
   el.querySelector("#aiKbUpload")?.addEventListener("click", () =>
     kbFile.click()
   );
+  kbReembed?.addEventListener("click", () => {
+    if (
+      !window.confirm(
+        "用当前向量配置重新向量化全部文档？内置知识库和已上传文档都会重算，耗时取决于文档数量。"
+      )
+    ) {
+      return;
+    }
+    kbReembed.disabled = true;
+    const hint = el.querySelector("#aiKbHint");
+    if (hint) hint.textContent = "正在重建向量…";
+    fetch("/api/ai/kb/reembed", { method: "POST" })
+      .then((r) => r.json().catch(() => ({})))
+      .then((j) => {
+        if (!j.ok) throw new Error(j.error || "重建失败");
+        if (hint) hint.textContent = `已排队 ${j.queued || 0} 个文档，后台向量化中`;
+      })
+      .catch((err) => {
+        if (hint) hint.textContent = `重建失败：${String(err.message || err)}`;
+      })
+      .finally(() => {
+        kbReembed.disabled = false;
+        refreshKb();
+      });
+  });
   kbFile?.addEventListener("change", () => {
     const f = kbFile.files?.[0];
     if (f) uploadToKb(f);
@@ -1254,6 +1503,15 @@ export function mountAiDock(el, { scene } = {}) {
     if (random) {
       setOpen(false);
       setTimeout(() => scene?.startRandomCompanionNarration?.(), 320);
+      return;
+    }
+    const research = e.target.closest("[data-ai-research]");
+    if (research) {
+      setResearchMode(true);
+      setOpen(true);
+      input.value =
+        "对比黄酮类和生物碱类的来源科分布，并生成一份带来源的研究简报";
+      input.focus();
       return;
     }
     const chip = e.target.closest("[data-ai-suggest]");

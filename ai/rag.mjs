@@ -64,10 +64,11 @@ export function configureRag(fn) {
 }
 
 export function embedModelName() {
-  if (EMBED_MODEL) return EMBED_MODEL;
   const c = configFn() || {};
+  const explicit = String(c.embedModel || EMBED_MODEL || "").trim();
+  if (explicit) return explicit;
   // DeepSeek / MiMo / custom 不一定有 embedding 接口，默认只对 GLM 开启；
-  // 其它服务商可用 AI_EMBED_MODEL 显式指定（OpenAI 兼容 /embeddings）。
+  // 其它服务商可在设置面板或 AI_EMBED_MODEL 里显式指定（OpenAI 兼容 /embeddings）。
   return c.provider === "glm" ? "embedding-3" : "";
 }
 
@@ -114,6 +115,7 @@ export function chunkText(text, opts = {}) {
   const size = opts.size || CHUNK_SIZE;
   const overlap = opts.overlap ?? CHUNK_OVERLAP;
   const max = opts.max || MAX_CHUNKS;
+  const title = String(opts.title || "").trim();
   const clean = String(text || "")
     .replace(/\r\n?/g, "\n")
     .replace(/[ \t]+\n/g, "\n")
@@ -193,7 +195,8 @@ export function chunkText(text, opts = {}) {
     out.push({
       i: out.length,
       text: body,
-      embed: tail ? `${tail}\n${body}` : body,
+      // 标题只用于检索，不进入引用正文；让“规模/字段”等小节也能被文档标题召回
+      embed: [title, tail, body].filter(Boolean).join("\n"),
     });
   }
   return out;
@@ -339,19 +342,21 @@ async function embedBatch(texts, timeout = EMBED_TIMEOUT) {
   const c = configFn() || {};
   const model = embedModelName();
   if (!model) throw new Error("当前服务商未配置 embedding 模型（可用 AI_EMBED_MODEL 指定）");
-  if (!c.apiKey || !c.baseURL) throw new Error("未配置 API Key，无法向量化");
+  const baseURL = String(c.embedBaseURL || c.baseURL || "").replace(/\/+$/, "");
+  const apiKey = c.embedApiKey || c.apiKey || "";
+  if (!apiKey || !baseURL) throw new Error("未配置向量 API Key / Base URL，无法向量化");
   if (Date.now() < EMBED_DISABLED_UNTIL) {
     throw new Error("embedding 暂时不可用（额度/资源包），改用本地向量");
   }
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), timeout);
   try {
-    const res = await fetch(`${c.baseURL.replace(/\/+$/, "")}/embeddings`, {
+    const res = await fetch(`${baseURL}/embeddings`, {
       method: "POST",
       signal: ac.signal,
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${c.apiKey}`,
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({ model, input: texts }),
     });
@@ -390,6 +395,38 @@ async function embedBatchRetry(texts, attempts = 2) {
     }
   }
   throw last;
+}
+
+/** 设置面板用：验证当前向量配置是否真的能返回向量 */
+export async function testEmbedding() {
+  const model = embedModelName();
+  if (!model) throw new Error("还没有配置向量模型");
+  const vecs = await embedBatch(["世界树天然产物知识库向量连通性测试"]);
+  return {
+    model,
+    dim: vecs[0]?.length || 0,
+    sample: "世界树天然产物知识库向量连通性测试",
+  };
+}
+
+/** 切换向量模型后，把内置和用户上传的文档全部重新向量化 */
+export function reembedAll() {
+  const manifest = readManifest();
+  EMBED_DISABLED_UNTIL = 0;
+  let queued = 0;
+  for (const doc of manifest.docs) {
+    const id = doc?.id;
+    if (!id) continue;
+    updateMeta(id, {
+      status: "pending",
+      embedded: 0,
+      embedError: "",
+    });
+    CACHE.delete(id);
+    queueEmbed(id);
+    queued++;
+  }
+  return queued;
 }
 
 async function embedDocument(id) {
@@ -559,7 +596,9 @@ export function ensureBuiltinKnowledge() {
 
   for (const s of seeds) {
     const seedHash = createHash("sha256")
-      .update(`${s.name}\n${s.text}`)
+      .update(
+        `${s.name}\n${s.text}\n${embedModelName() || "local-hash"}\nchunk-v3`
+      )
       .digest("hex")
       .slice(0, 16);
     const existing = manifest.docs.find((d) => d.id === s.id);
@@ -569,6 +608,7 @@ export function ensureBuiltinKnowledge() {
       size: CHUNK_SIZE,
       overlap: CHUNK_OVERLAP,
       max: MAX_CHUNKS,
+      title: s.name,
     });
     if (!chunks.length) continue;
     const rec = {
@@ -666,6 +706,8 @@ export function listDocuments() {
 
 export function kbStats() {
   const docs = listDocuments();
+  const c = configFn() || {};
+  const model = embedModelName();
   return {
     docs: docs.length,
     builtinDocs: docs.filter((d) => d.builtin).length,
@@ -674,7 +716,12 @@ export function kbStats() {
     embeddedDocs: docs.filter((d) => d.status === "ready").length,
     localDocs: docs.filter((d) => d.status === "local").length,
     dim: docs.find((d) => d.dim)?.dim || 0,
-    model: embedModelName() || "local-hash",
+    model: model || "local-hash",
+    embedReady: !!(
+      model &&
+      (c.embedBaseURL || c.baseURL) &&
+      (c.embedApiKey || c.apiKey)
+    ),
   };
 }
 
@@ -692,6 +739,7 @@ export function addDocument({ name, type, buffer }) {
     size: CHUNK_SIZE,
     overlap: CHUNK_OVERLAP,
     max: MAX_CHUNKS,
+    title: safeName,
   });
   if (!chunks.length) throw new Error("文件里没有可用文字");
 
@@ -884,6 +932,6 @@ export function publicHits(hits) {
     builtin: !!h.builtin,
     chunk: h.chunk,
     score: h.score,
-    snippet: String(h.text || "").replace(/\s+/g, " ").slice(0, 180),
+    snippet: String(h.text || "").replace(/\s+/g, " ").slice(0, 500),
   }));
 }

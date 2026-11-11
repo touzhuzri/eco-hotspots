@@ -2,7 +2,7 @@
 
 一棵由 LOTUS 天然产物结构组成的 WebGL 星点世界树。
 
-课程作业，以宣传化学内容为主。
+面向天然产物学习、科学传播与数据探索的 Web 应用。
 
 每一颗星是一个天然产物结构；树冠、树干、根际与土壤对应来源生物的生态位置。可以缩放、检索、点亮、连线，也可以领养一颗属于自己的分子。
 
@@ -63,13 +63,15 @@
 
 只想单独调试 AI：`./start-ai.sh`（Windows 用 `start-ai.cmd`）；暂时不启动 AI：`AI_DISABLED=1 ./start.sh`。
 
-### AI 分析（可选，Step 1）
+### AI 分析
 
 1. 在 `ai/.env` 填写 GLM / DeepSeek / MiMo 的 API Key（也可以启动后在右上角 ⚙ → AI / API 里填）
 2. 直接运行 `./start.sh daemon`（Windows 用 `start-windows.cmd`），AI 代理会一并启动；站点把 `/api/ai` 代理到本机 `8790`
 3. 打开页面底部 AI 分析坞，或右上角 ⚙ 配置服务商 / Base URL / 模型 / Key；同一面板的「多模态 / 视觉模型」可单独配置识图模型，并点「测试识图」验证
 4. 知识库分两层：内置的 **LOTUS 数据集卡片 + 开发参考论文 + 权威网站**（`data/kb-seed/`，不可删除），以及你上传的 PDF / Word / CSV；回答会自动检索并标注《文件名》第 N 段、论文 DOI 或网站 URL
 5. 识图：在 AI 坞点「识图」上传结构式、图表或照片，视觉模型先描述图片，再交给主模型调用 LOTUS 工具核对。可在右上角 ⚙ →「多模态 / 视觉模型」里单独配置并测试，纯文本模型无法识图
+6. 研究任务：点输入框旁「研究」，AI 先给出计划，再逐步调用工具，结束后可导出包含结论、工具记录和来源的 Markdown 简报
+7. 向量模型可与对话模型分开配置；切换后点知识库面板「重建向量」，再用 `node scripts/rag-eval.mjs` 跑检索评测
 
 AI 代理没有 npm 依赖；相似分子索引已生成在 `data/similarity/`，可用 `pipeline/build-molecule-similarity.py` 重建。内置知识库种子在 `data/kb-seed/`（随仓库提交），运行时正文和向量存在本机 `data/kb/`，已在 `.gitignore` 中忽略。详见 [`ai/README.md`](ai/README.md) 和 [`data/kb-seed/README.md`](data/kb-seed/README.md)。
 

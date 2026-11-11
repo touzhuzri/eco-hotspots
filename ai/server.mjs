@@ -34,14 +34,17 @@ import { attachmentTextForModel, parseFileBuffer } from "./files.mjs";
 import {
   addDocument,
   configureRag,
+  embedModelName,
   ensureBuiltinKnowledge,
   formatKbContext,
   kbStats,
   listDocuments,
   publicHits,
+  reembedAll,
   removeDocument,
   resumePending,
   searchKnowledge,
+  testEmbedding,
 } from "./rag.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -140,12 +143,16 @@ function loadConfig() {
     visionBaseURL: file.visionBaseURL || process.env.AI_VISION_BASE_URL || "",
     visionModel: file.visionModel || process.env.AI_VISION_MODEL || "",
     visionApiKey: file.visionApiKey || process.env.AI_VISION_API_KEY || "",
+    // 向量模型：可与对话服务商分开；留空时 GLM 默认 embedding-3，其余服务商走本地向量
+    embedBaseURL: file.embedBaseURL || process.env.AI_EMBED_BASE_URL || "",
+    embedModel: file.embedModel || process.env.AI_EMBED_MODEL || "",
+    embedApiKey: file.embedApiKey || process.env.AI_EMBED_API_KEY || "",
   };
 }
 
 let CONFIG = loadConfig();
 
-// 知识库向量化复用当前服务商配置（Key 只在服务端使用）
+// 知识库向量化使用独立的向量配置（Key 只在服务端使用）
 configureRag(() => CONFIG);
 
 /** 是否向服务商请求“思考过程”（GLM-4.5 默认开启；AI_THINKING=false 可关） */
@@ -155,7 +162,21 @@ let THINKING_SUPPORTED = (() => {
   return CONFIG.provider === "glm";
 })();
 
+function embeddingInfo() {
+  const model = embedModelName();
+  const baseURL = CONFIG.embedBaseURL || CONFIG.baseURL || "";
+  const hasKey = !!(CONFIG.embedApiKey || CONFIG.apiKey);
+  return {
+    model: model || "local-hash",
+    configuredModel: CONFIG.embedModel || "",
+    baseURL,
+    hasKey,
+    ready: !!model && !!baseURL && hasKey,
+  };
+}
+
 function publicConfig() {
+  const embed = embeddingInfo();
   return {
     provider: CONFIG.provider,
     baseURL: CONFIG.baseURL,
@@ -167,6 +188,11 @@ function publicConfig() {
     visionModel: CONFIG.visionModel || "",
     hasVisionKey: !!CONFIG.visionApiKey,
     visionReady: visionReady(),
+    embedBaseURL: CONFIG.embedBaseURL || "",
+    embedModel: CONFIG.embedModel || "",
+    embedModelEffective: embed.model,
+    hasEmbedKey: embed.hasKey,
+    embedReady: embed.ready,
   };
 }
 
@@ -301,6 +327,16 @@ function saveConfig(patch) {
     next.visionApiKey = patch.visionApiKey.trim();
   }
   if (patch.clearVisionKey) next.visionApiKey = "";
+  if (patch.embedBaseURL != null) {
+    next.embedBaseURL = String(patch.embedBaseURL).trim();
+  }
+  if (patch.embedModel != null) {
+    next.embedModel = String(patch.embedModel).trim();
+  }
+  if (typeof patch.embedApiKey === "string" && patch.embedApiKey.trim()) {
+    next.embedApiKey = patch.embedApiKey.trim();
+  }
+  if (patch.clearEmbedKey) next.embedApiKey = "";
   CONFIG = next;
   try {
     mkdirSync(dirname(CONFIG_FILE), { recursive: true });
@@ -1186,8 +1222,15 @@ async function streamOpenAI(messages, tools, onDelta, onThink, onStatus) {
   return { content, calls: calls.filter(Boolean), reasoning };
 }
 
-async function completeOpenAI(messages) {
+async function completeOpenAI(messages, opts = {}) {
   const url = `${CONFIG.baseURL.replace(/\/+$/, "")}/chat/completions`;
+  const maxTokens = Math.max(
+    1,
+    Math.min(4096, Number(opts.maxTokens) || 32)
+  );
+  const temperature = Number.isFinite(Number(opts.temperature))
+    ? Number(opts.temperature)
+    : 0.1;
   const res = await fetch(url, {
     method: "POST",
     headers: {
@@ -1197,22 +1240,154 @@ async function completeOpenAI(messages) {
     body: JSON.stringify({
       model: CONFIG.model,
       messages,
-      temperature: 0.1,
-      max_tokens: 32,
+      temperature,
+      max_tokens: maxTokens,
     }),
   });
   if (!res.ok) throw new Error(`模型接口 ${res.status}: ${await res.text()}`);
   const data = await res.json();
-  return data.choices?.[0]?.message?.content || "";
+  const msg = data.choices?.[0]?.message || {};
+  return String(msg.content || msg.reasoning_content || "").trim();
+}
+
+const RESEARCH_TOOL_NAMES = new Set(
+  TOOLS.map((t) => t.function?.name).filter(Boolean)
+);
+
+function fallbackResearchPlan(question) {
+  const q = String(question || "");
+  const steps = [
+    { title: "核实 LOTUS 数据范围", tool: "query_molecules" },
+    { title: "检索知识库与权威来源", tool: "search_knowledge" },
+    { title: "整理图表与结论", tool: "render_chart" },
+  ];
+  if (/相似|similar/i.test(q)) {
+    steps[0] = { title: "定位目标分子并找相似结构", tool: "find_similar" };
+  }
+  if (/联网|最新|新闻|网页|外部资料/i.test(q)) {
+    steps.splice(1, 0, { title: "联网补充公开资料", tool: "web_search" });
+  }
+  return {
+    goal: q.slice(0, 80) || "天然产物数据研究",
+    steps: steps.slice(0, 4),
+  };
+}
+
+/** 从“JSON + 解释文字”的回复里取出第一个完整的 JSON 对象 */
+function firstJsonObject(text) {
+  const start = String(text || "").indexOf("{");
+  if (start < 0) return "";
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+    if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  return "";
+}
+
+function parseResearchPlan(text, question) {
+  const raw = String(text || "")
+    .replace(/```(?:json)?/gi, "")
+    .replace(/```/g, "")
+    .trim();
+  const jsonText = firstJsonObject(raw);
+  if (!jsonText) throw new Error("规划器没有返回 JSON");
+  const obj = JSON.parse(jsonText);
+  const steps = (Array.isArray(obj.steps) ? obj.steps : [])
+    .map((s) => ({
+      title: String(s?.title || "").trim().slice(0, 80),
+      tool: RESEARCH_TOOL_NAMES.has(String(s?.tool || "")) ? String(s.tool) : "none",
+    }))
+    .filter((s) => s.title)
+    .slice(0, 4);
+  if (!steps.length) throw new Error("规划器没有返回步骤");
+  return {
+    goal: String(obj.goal || question || "天然产物数据研究").trim().slice(0, 120),
+    steps,
+  };
+}
+
+async function makeResearchPlan(question, context = {}) {
+  const selected = context?.selectedName
+    ? `当前选中分子：${context.selectedName}${
+        context.selectedInchikey ? `（${context.selectedInchikey}）` : ""
+      }。`
+    : "";
+  const prompt = `你是「世界树」的研究规划器。根据用户问题，制定 2–4 步可执行的研究计划。
+可用工具：query_molecules（查 LOTUS 结构/统计）、find_similar（相似分子）、explain（读元数据）、render_chart（图表）、search_knowledge（知识库/论文/网站）、web_search（公开网页）、scene_action（3D 场景动作）。
+要求：
+- 第一步必须用 LOTUS 工具核实数据，不能先下结论；
+- 涉及背景/论文/定义时安排 search_knowledge；
+- 涉及数量分布时安排 render_chart；
+- 需要最新外部信息时才安排 web_search；
+- 只输出 JSON，不要 Markdown 或解释。
+
+输出格式：
+{"goal":"一句话研究目标","steps":[{"title":"步骤标题","tool":"query_molecules"}]}
+
+${selected}用户问题：${String(question || "").slice(0, 800)}`;
+  const text = await completeOpenAI(
+    [
+      { role: "system", content: "你只输出合法 JSON，不输出任何其他文字。" },
+      { role: "user", content: prompt },
+    ],
+    { maxTokens: 2000, temperature: 0.1 }
+  );
+  return parseResearchPlan(text, question);
 }
 
 function sse(res, obj) {
-  res.write(`data: ${JSON.stringify(obj)}\n\n`);
+  if (res.writableEnded || res.destroyed) return;
+  try {
+    res.write(`data: ${JSON.stringify(obj)}\n\n`);
+  } catch (_) {
+    // 客户端点“停止”后连接已关闭，忽略后续事件
+  }
 }
 
 async function runChat(res, body) {
   const history = Array.isArray(body?.messages) ? body.messages : [];
   const context = body?.context || {};
+  const mode = body?.mode === "research" ? "research" : "chat";
+  let plan = null;
+  let planCursor = 0;
+  const planStepState = new Map();
+
+  function emitPlanStep(index, status, detail = "") {
+    if (!plan) return;
+    planStepState.set(index, status);
+    sse(res, { type: "step", index, status, detail });
+  }
+
+  /** 把模型实际调用的工具对到计划步骤；同一工具可多次调用，不强行推进其他步骤 */
+  function beginPlanStep(toolName) {
+    if (!plan) return -1;
+    let index = plan.steps.findIndex(
+      (s, i) => s.tool === toolName && planStepState.get(i) !== "done"
+    );
+    if (index < 0) index = plan.steps.findIndex((s) => s.tool === toolName);
+    if (index < 0) index = Math.min(planCursor, plan.steps.length - 1);
+    planCursor = Math.max(planCursor, index);
+    emitPlanStep(index, "running", toolName);
+    return index;
+  }
+
   const messages = [
     { role: "system", content: SYSTEM_PROMPT },
     ...history
@@ -1369,6 +1544,35 @@ async function runChat(res, body) {
       "\n\n请基于图片识别结果回答；涉及分子名称、分类、数量时用 LOTUS 工具核对，不要仅凭图片断言。";
     if (lastUser) lastUser.content += block;
     else messages.push({ role: "user", content: block });
+  }
+
+  // 研究任务模式：先让规划器拆步骤，再把计划作为约束交给执行模型
+  if (mode === "research") {
+    sse(res, { type: "status", text: "正在制定研究计划…" });
+    if (CONFIG.apiKey) {
+      try {
+        plan = await makeResearchPlan(lastUserText, context);
+      } catch (err) {
+        console.warn(
+          "[ai] research plan failed, use fallback:",
+          String(err?.message || err).slice(0, 160)
+        );
+        plan = fallbackResearchPlan(lastUserText);
+      }
+    } else {
+      plan = fallbackResearchPlan(lastUserText);
+    }
+    sse(res, { type: "plan", goal: plan.goal, steps: plan.steps });
+    const planText = plan.steps
+      .map(
+        (s, i) =>
+          `${i + 1}. ${s.title}${s.tool && s.tool !== "none" ? `（工具：${s.tool}）` : ""}`
+      )
+      .join("\n");
+    messages.push({
+      role: "user",
+      content: `【研究计划（请按步骤执行，必要时可调整）】\n目标：${plan.goal}\n${planText}\n\n请先调用工具核实数据，再给出结论；最终回答按「结论 / 关键数据 / 来源 / 局限」组织，不要编造。`,
+    });
   }
 
   if (!CONFIG.apiKey) {
@@ -1543,6 +1747,7 @@ async function runChat(res, body) {
         } catch (_) {
           args = {};
         }
+        const planStep = beginPlanStep(call.function.name);
         let result;
         try {
           result = await execTool(call.function.name, args, webCtx);
@@ -1554,6 +1759,13 @@ async function runChat(res, body) {
             ).slice(0, 300)}`,
           };
           console.error("[ai] tool error:", call.function.name, err);
+        }
+        if (planStep >= 0) {
+          emitPlanStep(
+            planStep,
+            result?.ok ? "done" : "error",
+            result?.ok ? "" : String(result?.error || "工具失败").slice(0, 80)
+          );
         }
         console.log(
           `[ai] round ${round + 1} · tool ${call.function.name} ·`,
@@ -1687,6 +1899,7 @@ const server = createServer(async (req, res) => {
       similarity: !!loadSimilarity(),
       maxToolRounds: MAX_TOOL_ROUNDS,
       kb: kbStats(),
+      embedding: embeddingInfo(),
       vision: visionConfig().model,
       visionReady: visionReady(),
       visionCustom: !!process.env.AI_VISION_MODEL,
@@ -1887,6 +2100,32 @@ const server = createServer(async (req, res) => {
   // ── 知识库（RAG） ─────────────────────────────────────────
   if (url.pathname === "/api/ai/kb" && req.method === "GET") {
     return json(res, 200, { ok: true, stats: kbStats(), docs: listDocuments() });
+  }
+
+  // 用当前向量配置做一次最小请求，确认 /embeddings 可用
+  if (url.pathname === "/api/ai/embed-test" && req.method === "POST") {
+    try {
+      const result = await testEmbedding();
+      return json(res, 200, { ok: true, ...result });
+    } catch (err) {
+      return json(res, 200, {
+        ok: false,
+        error: String(err?.message || err).slice(0, 400),
+      });
+    }
+  }
+
+  // 配置切换后重建全部向量（内置知识库 + 用户文档）
+  if (url.pathname === "/api/ai/kb/reembed" && req.method === "POST") {
+    try {
+      const queued = reembedAll();
+      return json(res, 200, { ok: true, queued, stats: kbStats() });
+    } catch (err) {
+      return json(res, 500, {
+        ok: false,
+        error: String(err?.message || err).slice(0, 300),
+      });
+    }
   }
 
   if (url.pathname === "/api/ai/kb" && req.method === "POST") {
