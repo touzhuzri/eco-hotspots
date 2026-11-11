@@ -8,7 +8,7 @@
 
 import { createReadStream, statSync } from "node:fs";
 import { createServer, request as httpRequest } from "node:http";
-import { dirname, extname, join, normalize, sep } from "node:path";
+import { basename, dirname, extname, join, normalize, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -135,6 +135,9 @@ const server = createServer((req, res) => {
     .replace(/^(\.\.[/\\])+/, "");
   if (!rel) rel = "index.html";
 
+  // 部分浏览器/抓取器会直接请求根路径 /favicon.ico，统一指向新徽标
+  if (rel === "favicon.ico") rel = join("assets", "favicon.ico");
+
   if (blocked(rel)) return send(res, 404, "Not Found");
 
   let file = join(ROOT, rel);
@@ -154,8 +157,13 @@ const server = createServer((req, res) => {
     const type = gzJson
       ? MIME[".json.gz"]
       : MIME[ext] || "application/octet-stream";
+    const isIcon = /^(favicon.*\.(ico|png)|apple-touch-icon.*\.png)$/i.test(
+      basename(file)
+    );
     const noCache =
-      /\.(html?|css|m?js)$/i.test(file) || file.endsWith(`${sep}index.html`);
+      isIcon ||
+      /\.(html?|css|m?js)$/i.test(file) ||
+      file.endsWith(`${sep}index.html`);
 
     res.writeHead(200, {
       "Content-Type": type,
