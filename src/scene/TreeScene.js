@@ -782,15 +782,25 @@ export function mountTreeScene(rootEl) {
             },
             { id: "narrate", label: "简单讲讲", hint: "滑到右侧逐段念一遍" },
             { id: "analyze", label: "快速分析", hint: "让 AI 分析这颗分子" },
+            {
+              id: "shuttle",
+              label: "带我穿梭群星",
+              hint: "贴近星点再拉远，掠过冠层与根际",
+            },
             { id: "tour", label: "带我逛逛", hint: "随机挑一颗分子讲讲" },
             { id: "ask", label: "问问 AI", hint: "打开底部分析坞" },
           ]
         : [
             {
+              id: "shuttle",
+              label: "带我穿梭群星",
+              hint: "镜头穿过星云，快速看冠层和根际",
+              primary: true,
+            },
+            {
               id: "tour",
               label: "带我逛逛",
               hint: "随机挑一颗分子讲讲",
-              primary: true,
             },
             { id: "analyze", label: "快速分析", hint: "让 AI 分析当前视图" },
             { id: "ask", label: "问问 AI", hint: "打开底部分析坞" },
@@ -804,6 +814,7 @@ export function mountTreeScene(rootEl) {
     else if (action === "analyze") quickAnalyze();
     else if (action === "narrate") startCompanionNarration();
     else if (action === "tour") startRandomCompanionNarration();
+    else if (action === "shuttle") startStarShuttle();
     else if (action === "ask") {
       window.dispatchEvent(new CustomEvent("eco:ai-open"));
     }
@@ -5181,6 +5192,7 @@ export function mountTreeScene(rootEl) {
     if (!setPanel.hidden && e.key === "Escape") closeSettingsPanel();
   });
   window.addEventListener("eco:ai-open", closeSettingsPanel);
+  window.addEventListener("eco:ui-close", closeSettingsPanel);
   function bindRange(id, key, fmt) {
     const inp = rootEl.querySelector("#" + id);
     const em = rootEl.querySelector("#" + id + "v");
@@ -5853,6 +5865,8 @@ export function mountTreeScene(rootEl) {
   /** 苯环小助手自己的界面导览：滑动、字幕、指向、拖动世界树 */
   function startCompanionTour() {
     window.__wtAutoTourPending = false;
+    // 先收起 AI 坞/设置，避免小助手和字幕被界面挡住
+    window.dispatchEvent(new CustomEvent("eco:ui-close"));
     const rail = document.querySelector(".explore-rail");
     const detail = document.querySelector(".detail");
     const railRect = rail ? rail.getBoundingClientRect() : null;
@@ -5935,9 +5949,126 @@ export function mountTreeScene(rootEl) {
           if (step.drag) startGuideDrag();
           if (step.openAi) {
             window.__wtAutoTourPending = false;
+            // 等小助手把这句讲完再打开 AI 研究台，避免它被面板盖住
             setTimeout(() => {
               window.dispatchEvent(new CustomEvent("eco:ai-open"));
-            }, 900);
+            }, 6200);
+          }
+        },
+      }
+    );
+  }
+
+  /** 小助手带领的「穿梭群星」：贴近星点、拉远看星云，再掠过根际回到全树 */
+  function startStarShuttle() {
+    window.__wtAutoTourPending = false;
+    window.dispatchEvent(new CustomEvent("eco:ui-close"));
+    setSelected(null);
+    companion.stopGuide();
+    guideDrag = null;
+    guideScroll = null;
+    document.body.classList.remove("idle");
+    lastInteraction = performance.now();
+
+    const W0 = W;
+    const H0 = H;
+    const centerY = ((TREE_Y1 + TREE_Y0) / 2) * WORLD_SCALE;
+    const scale = WORLD_SCALE * TREE_VOLUME;
+    const pool = productStars.filter(
+      (s) => s.kind !== "catalog" && s.inchikey
+    );
+    const pick = () => pool[(Math.random() * pool.length) | 0] || null;
+    const a = pick();
+    const b = pick();
+    const autoWas = cam.auto;
+    cam.auto = false;
+
+    companion.startGuide(
+      [
+        {
+          px: W0 * 0.5,
+          py: H0 * 0.36,
+          duration: 3,
+          gesture: "wave",
+          expression: "excited",
+          text: "抓好，我带你穿梭群星。",
+        },
+        {
+          px: W0 * 0.68,
+          py: H0 * 0.3,
+          duration: 4.2,
+          gesture: "point",
+          expression: "excited",
+          fly: "a",
+          text: "先贴近冠层的一颗星，穿过去。",
+        },
+        {
+          px: W0 * 0.6,
+          py: H0 * 0.42,
+          duration: 4.5,
+          gesture: "pull",
+          expression: "excited",
+          fly: "out",
+          text: "拉远——整片星云在身后展开。",
+        },
+        {
+          px: W0 * 0.34,
+          py: H0 * 0.38,
+          duration: 4.2,
+          gesture: "point",
+          expression: "curious",
+          fly: "b",
+          text: "再穿一颗，看看另一侧的星点。",
+        },
+        {
+          px: W0 * 0.32,
+          py: H0 * 0.62,
+          duration: 4,
+          gesture: "point",
+          expression: "curious",
+          fly: "roots",
+          text: "这里是根际，星点更密。",
+        },
+        {
+          px: W0 * 0.5,
+          py: H0 * 0.5,
+          duration: 3.6,
+          gesture: "wave",
+          expression: "happy",
+          fly: "home",
+          text: "穿梭结束，回到整棵树。",
+        },
+      ],
+      {
+        onStep: (i, step) => {
+          lastInteraction = performance.now();
+          if (step.fly === "a" && a) {
+            flyTo(a.pos);
+          } else if (step.fly === "out") {
+            flyToView(
+              a ? a.pos.x * 0.2 : 0,
+              centerY,
+              a ? a.pos.z * 0.2 : 0,
+              DIST_MAX * 0.9,
+              0.06,
+              2.2
+            );
+          } else if (step.fly === "b" && b) {
+            flyTo(b.pos);
+          } else if (step.fly === "roots") {
+            flyToView(
+              0,
+              -0.35 * scale,
+              0,
+              Math.max(DIST_MIN, DIST_MAX * 0.5),
+              -0.18,
+              2.2
+            );
+          } else if (step.fly === "home") {
+            flyToView(0, centerY, 0, DIST_MAX, 0.16, 2.2);
+            setTimeout(() => {
+              cam.auto = autoWas;
+            }, 2600);
           }
         },
       }
@@ -5960,8 +6091,11 @@ export function mountTreeScene(rootEl) {
     if (document.visibilityState !== "visible") return;
     if (getState().selectedId) return;
     autoTourSeen = true;
+    // 导览已经介绍过，之后点小助手直接出快捷菜单，不再重复自动导览
+    autoNarrateSeen = true;
     try {
       localStorage.setItem("eco-companion-tour-auto-v1", "1");
+      localStorage.setItem("eco-companion-auto-v1", "1");
     } catch (_) {}
     startCompanionTour();
   }
@@ -5996,6 +6130,7 @@ export function mountTreeScene(rootEl) {
 
   /** 带我逛逛：随机选一颗分子，等它飞过去后讲解右侧详情 */
   function startRandomCompanionNarration() {
+    window.dispatchEvent(new CustomEvent("eco:ui-close"));
     const p = randomPoint();
     if (!p) {
       startCompanionTour();
@@ -6037,6 +6172,7 @@ export function mountTreeScene(rootEl) {
       return;
     }
     const selectedId = sel.id;
+    window.dispatchEvent(new CustomEvent("eco:ui-close"));
     const meta = await getMoleculeMeta(sel.inchikey).catch(() => null);
     if (getState().selectedId !== selectedId) return;
 
@@ -6149,6 +6285,7 @@ export function mountTreeScene(rootEl) {
       return;
     }
     const selectedId = sel.id;
+    window.dispatchEvent(new CustomEvent("eco:ui-close"));
     autoNarrateSeen = true;
     try {
       localStorage.setItem("eco-companion-auto-v1", "1");
@@ -6384,6 +6521,7 @@ export function mountTreeScene(rootEl) {
       leafNext = 5.5;
     },
     startCompanionTour,
+    startStarShuttle,
     startCompanionNarration,
     startCompanionReveal,
     startRandomCompanionNarration,

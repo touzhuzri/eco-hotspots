@@ -145,6 +145,11 @@ const CAPABILITIES = [
     title: "让小助手滑动界面、讲解并拖动世界树",
   },
   {
+    label: "穿梭群星",
+    shuttle: true,
+    title: "让小助手带着镜头贴近星点、穿过星云，掠过冠层和根际",
+  },
+  {
     label: "带出处解释",
     prompt: "解释黄酮类分子的来源和分类，并注明 LOTUS 出处",
   },
@@ -311,9 +316,11 @@ export function mountAiDock(el, { scene } = {}) {
               ${CAPABILITIES.map(
                 (c) =>
                   `<button type="button" ${
-                    c.image
-                      ? `data-ai-image="1"`
-                      : c.tour
+                    c.shuttle
+                      ? `data-ai-shuttle="1"`
+                      : c.image
+                        ? `data-ai-image="1"`
+                        : c.tour
                         ? `data-ai-tour="1"`
                         : c.kb
                           ? `data-ai-kb="1"`
@@ -1822,6 +1829,7 @@ export function mountAiDock(el, { scene } = {}) {
   });
 
   window.addEventListener("eco:ai-config-changed", refreshAiBadge);
+  window.addEventListener("eco:ui-close", () => setOpen(false));
   refreshAiBadge();
   refreshContinueBtn();
   continueBtn?.addEventListener("click", restoreLastResearch);
@@ -1981,6 +1989,12 @@ export function mountAiDock(el, { scene } = {}) {
 
   // 建议 chips
   el.addEventListener("click", (e) => {
+    const shuttle = e.target.closest("[data-ai-shuttle]");
+    if (shuttle) {
+      setOpen(false);
+      setTimeout(() => scene?.startStarShuttle?.(), 320);
+      return;
+    }
     const uploadChip = e.target.closest("[data-ai-upload]");
     if (uploadChip) {
       setOpen(true);

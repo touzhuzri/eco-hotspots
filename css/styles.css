@@ -3415,7 +3415,8 @@ body.idle .bottom-dock {
 /* ── 苯环小助手：对话气泡 ─────────────────────────────── */
 .companion-bubble {
   position: fixed;
-  z-index: 24;
+  /* 高于 AI 坞/设置面板，避免导览时被界面盖住 */
+  z-index: 40;
   max-width: 230px;
   padding: 10px 14px;
   background: rgba(8, 16, 13, 0.58);
@@ -4903,7 +4904,8 @@ body.ui-intro .ai-dock { display: none; }
   left: 50%;
   bottom: 96px;
   transform: translateX(-50%);
-  z-index: 21;
+  /* 高于 AI 坞/设置面板，导览字幕始终可读 */
+  z-index: 40;
   display: flex;
   align-items: center;
   gap: 10px;
