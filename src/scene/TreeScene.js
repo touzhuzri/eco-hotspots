@@ -6583,6 +6583,17 @@ export function mountTreeScene(rootEl) {
     getSelected() {
       return selectedPoint();
     },
+    /** AI 回答里的分子 chip：按 InChIKey 选中并飞到详情卡 */
+    selectByInchikey(inchikey) {
+      const key = String(inchikey || "").trim().toUpperCase();
+      if (!key) return false;
+      const p = productStars.find(
+        (s) => String(s.inchikey || "").toUpperCase() === key
+      );
+      if (!p) return false;
+      setSelected(p.id);
+      return true;
+    },
     getNearby(limit = 6) {
       const filters = getState();
       const radius = Math.max(6, cam.dist * 0.55);

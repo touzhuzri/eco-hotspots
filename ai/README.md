@@ -311,6 +311,25 @@ AI_EVAL_CHAT=1 AI_EVAL_CHAT_LIMIT=8 node scripts/citation-eval.mjs
 - 限制：最多 50,000 行 × 60 列；Excel 只读第一个工作表，公式单元格使用缓存值；合并单元格可能落在首列。
 - 行数、求和、平均都由工具计算，不使用模型口算，便于核对。
 
+## 5.7 数据核对（资料 vs LOTUS）
+
+当用户要求“核对/对比/是否一致/差异”，或资料中出现“某科/某类有 N 条”的数量断言时，模型调用 `verify_claim`：
+
+```json
+{
+  "claimed": 1200,
+  "family": "Asteraceae",
+  "source_label": "Rutz 2022",
+  "tolerance_pct": 5
+}
+```
+
+- 服务端用 `query_molecules` 做真实统计，再和 `claimed` 比较，返回 `claimed`、`actual`、`delta`、`percent`、`verdict`。
+- 默认容差 ±5%；超过容差 `verdict=conflict`。
+- 比较纯数字，不判断资料可信度；模型负责把资料里的数字和筛选条件传进来。
+- 服务端通过 SSE `conflict` 下发核对结果，前端生成「数据核对」卡片，研究简报也会包含这一节。
+- 限制：目前只支持按 `family` / `class_contains` / `name_contains` 统计 LOTUS 记录数，不支持论文里的实验数值（IC50、产量等）。
+
 ## 6. 接口与工具
 
 - `/api/ai/health`：服务状态、是否配置 Key、相似索引是否加载
@@ -341,6 +360,7 @@ AI_EVAL_CHAT=1 AI_EVAL_CHAT_LIMIT=8 node scripts/citation-eval.mjs
 - `search_papers`：学术文献检索（每轮最多 3 次）。OpenAlex/Crossref/Europe PMC 走公开 API；Nature 用 ISSN 过滤；知网/万方/WoS 没有公开检索 API，只返回官网入口和 OpenAlex 公开替代结果，不抓取需要登录的受限全文。
 - `search_knowledge`：检索用户上传的知识库段落（每轮最多 3 次）
 - `analyze_table`：对 CSV / Excel 做分组计数、求和、平均、最小/最大，返回 groups 并自动画图
+- `verify_claim`：把资料/论文里的数量断言与 LOTUS 实际统计比较，返回 claimed / actual / percent / verdict
 
 无 Key 时 `/api/ai/chat` 会返回**本地演示回答**（真实查询 LOTUS + 图表），方便先联调界面。
 

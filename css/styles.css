@@ -3916,6 +3916,75 @@ body.ai-dock-open .sel-class {
   color: #eafff0;
 }
 
+.ai-conflict {
+  margin-top: 8px;
+  border: 1px solid rgba(240, 180, 120, 0.35);
+  background: rgba(40, 26, 10, 0.32);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+.ai-conflict.is-ok {
+  border-color: rgba(140, 230, 170, 0.22);
+  background: rgba(8, 20, 14, 0.35);
+}
+.ai-conflict-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: #f0c090;
+  font-size: 0.62rem;
+}
+.ai-conflict.is-ok .ai-conflict-head { color: #b9e8c8; }
+.ai-conflict-head em {
+  margin-left: auto;
+  color: #f0b080;
+  font-style: normal;
+  font-size: 0.54rem;
+}
+.ai-conflict.is-ok .ai-conflict-head em { color: #9fe8b8; }
+.ai-conflict-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 3px;
+  color: #ded3c2;
+  font-size: 0.58rem;
+}
+.ai-conflict-row b { color: #a99a86; font-weight: 500; }
+.ai-conflict p {
+  margin: 5px 0 0;
+  color: #b7ab98;
+  font-size: 0.56rem;
+  line-height: 1.5;
+}
+
+.ai-mol-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+}
+.ai-mol-chips > span { color: #7f9a8b; font-size: 0.54rem; }
+.ai-mol-chips button {
+  border: 1px solid rgba(140, 200, 170, 0.25);
+  background: rgba(94, 207, 122, 0.06);
+  color: #b9e8c8;
+  border-radius: 999px;
+  padding: 3px 8px;
+  font: inherit;
+  font-size: 0.56rem;
+  cursor: pointer;
+}
+.ai-mol-chips button:hover {
+  background: rgba(94, 207, 122, 0.16);
+  color: #eafff0;
+}
+.ai-mol-chips button.is-missing {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+
 .ai-vision-card,
 .ai-reflection {
   margin-top: 8px;

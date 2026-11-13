@@ -37,6 +37,7 @@ import {
   tableContextText,
   tablesFromAttachments,
 } from "./tables.mjs";
+import { compareClaim } from "./verify.mjs";
 import {
   addDocument,
   configureRag,
@@ -925,6 +926,48 @@ function queryMolecules(args = {}) {
   };
 }
 
+/**
+ * 核对「资料里的数量断言」与 LOTUS 实际统计。
+ * 比较是确定性的：模型只负责把资料中的数字和筛选条件传进来。
+ */
+function verifyClaim(args = {}) {
+  const claimed = Number(args.claimed);
+  if (!Number.isFinite(claimed) || claimed < 0) {
+    return {
+      ok: false,
+      error:
+        "verify_claim 需要 claimed（资料中声称的数量，数字）；例如 claimed: 1200。",
+    };
+  }
+  const filters = {};
+  if (args.family) filters.family = String(args.family).trim();
+  if (args.class_contains) {
+    filters.class_contains = String(args.class_contains).trim();
+  }
+  if (args.name_contains) {
+    filters.name_contains = String(args.name_contains).trim();
+  }
+  if (!Object.keys(filters).length) {
+    return {
+      ok: false,
+      error:
+        "至少提供 family / class_contains / name_contains 之一，用来确定 LOTUS 的统计范围。",
+    };
+  }
+  let q;
+  try {
+    q = queryMolecules({ ...filters, limit: 1 });
+  } catch (err) {
+    return { ok: false, error: String(err?.message || err).slice(0, 200) };
+  }
+  const actual = Number(q.count) || 0;
+  return compareClaim(claimed, actual, {
+    tolerance_pct: args.tolerance_pct,
+    filters,
+    source_label: args.source_label,
+  });
+}
+
 // ── 相似分子索引 ───────────────────────────────────────────
 const POP = new Uint8Array(256);
 for (let i = 0; i < 256; i++) POP[i] = (i & 1) + POP[i >> 1];
@@ -1247,6 +1290,44 @@ const TOOLS = [
   {
     type: "function",
     function: {
+      name: "verify_claim",
+      description:
+        "核对资料、论文或用户文档里的数量断言与 LOTUS 实际统计是否一致。用户要求“核对/对比/是否一致/差异/冲突”，或资料中出现“某科/某类有 N 条”的数字时使用。claimed 必须是资料里写的数字，筛选条件用 family/class_contains/name_contains 指定；工具会返回 claimed、actual、percent、verdict。",
+      parameters: {
+        type: "object",
+        properties: {
+          claimed: {
+            type: "number",
+            description: "资料中声称的数量，如 1200",
+          },
+          family: {
+            type: "string",
+            description: "植物科拉丁名或 LOTUS 中的科名，如 Asteraceae",
+          },
+          class_contains: {
+            type: "string",
+            description: "化学分类包含的词，如 Flavon、Alkaloid",
+          },
+          name_contains: {
+            type: "string",
+            description: "名称包含的词，如 quercetin",
+          },
+          source_label: {
+            type: "string",
+            description: "资料出处，如《论文.pdf》或 Rutz 2022",
+          },
+          tolerance_pct: {
+            type: "number",
+            description: "允许的百分比误差，默认 5",
+          },
+        },
+        required: ["claimed"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "analyze_table",
       description:
         "对用户本轮上传的 CSV / Excel 表格做确定性统计：行数、分组计数、求和、平均、最小/最大。用户问“按某列统计/画图/哪一类最多/平均多少”，或上传了表格时使用。必须先调用本工具再给数字，不要手算。返回的 groups 会自动生成柱状图。",
@@ -1352,6 +1433,8 @@ async function execToolInner(name, args, ctx = {}) {
       };
     case "analyze_table":
       return analyzeTable(ctx.tables || [], args || {});
+    case "verify_claim":
+      return verifyClaim(args || {});
     case "search_knowledge": {
       const max = 3;
       if ((ctx.kbCalls || 0) >= max) {
@@ -2065,7 +2148,8 @@ const SYSTEM_PROMPT = `你是「世界树」的 AI 数据分析助手，服务�
 18. 论文和网站用于解释背景、方法学、字段和出处，不能替代 LOTUS 统计；如果两者与 LOTUS 冲突，以 LOTUS 为准并说明差异。
 19. 用户问论文、文献、研究进展、期刊、作者、DOI，或点名 Nature / Web of Science / 知网 / 万方时，优先调用 search_papers。国际文献用 openalex/crossref/europepmc；Nature 用 source="nature"；知网/万方/WoS 用对应 source，工具会返回检索入口。需要确认有哪些外部源、或某个源失败要换源时，调用 list_research_sources。不要假装已经拿到需要登录的受限全文。
 20. search_papers 一轮最多调用 3 次；结果要写清标题、作者、年份、期刊和 DOI/链接。没有结果就如实说明，并给出可点击的检索入口；不要把知网/万方/WoS 的入口说成已经检索过的结果。若返回 alternatives，明确写“以下是 OpenAlex 公开替代结果”，不要冒充知网/万方/WoS 的结果。
-21. 用户上传 CSV / Excel，或消息里出现【本轮上传的结构化表格】时，涉及计数、求和、平均、分组、画图必须调用 analyze_table；不要手算，也不要用 search_knowledge 代替表格统计。工具返回 groups 时系统会自动生成柱状图，不要再重复调用 render_chart。`;
+21. 用户上传 CSV / Excel，或消息里出现【本轮上传的结构化表格】时，涉及计数、求和、平均、分组、画图必须调用 analyze_table；不要手算，也不要用 search_knowledge 代替表格统计。工具返回 groups 时系统会自动生成柱状图，不要再重复调用 render_chart。
+22. 用户要求核对资料/论文与 LOTUS 是否一致，或资料中出现“某科/某类有 N 条”的数量断言时，调用 verify_claim（claimed 填资料数字，family/class_contains/name_contains 指定范围，source_label 写清出处）；最终回答必须写出资料值、LOTUS 实际值和差异百分比，不要只说“基本一致”。`;
 
 function toolResultCount(result) {
   const n =
@@ -2327,6 +2411,9 @@ function fallbackResearchPlan(question) {
   if (/表格|CSV|Excel|上传.*数据|按.*统计|平均|求和/i.test(q)) {
     steps.unshift({ title: "统计上传表格", tool: "analyze_table" });
   }
+  if (/核对|对比|一致|差异|冲突|不符/.test(q)) {
+    steps.unshift({ title: "核对资料数字与 LOTUS", tool: "verify_claim" });
+  }
   if (/论文|文献|期刊|DOI|Nature|Web of Science|WoS|知网|万方|研究进展/i.test(q)) {
     steps.splice(1, 0, { title: "检索论文与 DOI", tool: "search_papers" });
   }
@@ -2480,7 +2567,7 @@ async function makeResearchPlan(question, context = {}) {
     ? `图片结构化分析：${context.imageSummary}。`
     : "";
   const prompt = `你是「世界树」的研究规划器。根据用户问题，制定 2–4 步可执行的研究计划。
-可用工具：query_molecules（查 LOTUS 结构/统计）、find_similar（相似分子）、explain（读元数据）、render_chart（图表）、analyze_table（对上传的 CSV/Excel 做分组统计）、search_knowledge（知识库/论文/网站）、search_papers（OpenAlex/Crossref/Europe PMC/Nature/知网/万方/WoS 文献检索）、web_search（公开网页）、scene_action（3D 场景动作）。
+可用工具：query_molecules（查 LOTUS 结构/统计）、find_similar（相似分子）、explain（读元数据）、render_chart（图表）、analyze_table（对上传的 CSV/Excel 做分组统计）、verify_claim（核对资料数字与 LOTUS）、search_knowledge（知识库/论文/网站）、search_papers（OpenAlex/Crossref/Europe PMC/Nature/知网/万方/WoS 文献检索）、web_search（公开网页）、scene_action（3D 场景动作）。
 要求：
 - 第一步必须用 LOTUS 工具核实数据，不能先下结论；
 - 涉及背景/论文/定义时安排 search_knowledge；
@@ -2717,7 +2804,14 @@ async function runChat(res, body, clientSignal = null) {
       if (hits.length) {
         autoEvidence += hits.length;
         sse(res, { type: "source", items: publicHits(hits) });
-        const block = "\n\n" + formatKbContext(hits);
+        const wantsCheck =
+          /核对|对比|比较|一致|差异|冲突|不符/.test(lastUserText);
+        const block =
+          "\n\n" +
+          formatKbContext(hits) +
+          (wantsCheck
+            ? "\n\n【核对提示】如果资料中出现数量断言（如某科/某类有 N 条），请调用 verify_claim 与 LOTUS 实际统计比较，不要只凭文字判断。"
+            : "");
         const lastUser = [...messages]
           .reverse()
           .find((m) => m.role === "user");
@@ -3013,6 +3107,9 @@ async function runChat(res, body, clientSignal = null) {
         });
         if (call.function.name === "render_chart" && result.spec) {
           sse(res, { type: "chart", spec: result.spec });
+        }
+        if (call.function.name === "verify_claim" && result?.ok) {
+          sse(res, { type: "conflict", conflict: result });
         }
         if (
           call.function.name === "analyze_table" &&

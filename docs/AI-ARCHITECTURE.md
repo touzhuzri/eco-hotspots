@@ -170,7 +170,30 @@ flowchart LR
 - 服务端保留最近 300 个会话、30 天过期；换设备或清缓存后仍能“继续上次”。
 - 研究简报、来源和反思都随会话保存，图片不存服务端。
 
-## 8. 安全边界
+## 8. 数据核对与可点击溯源
+
+```mermaid
+sequenceDiagram
+  participant U as 用户
+  participant M as 模型
+  participant T as verify_claim
+  participant L as LOTUS
+  participant UI as AI 分析坞
+
+  U->>M: 资料里说菊科有 1000 条，和 LOTUS 一致吗？
+  M->>T: claimed=1000, family=Asteraceae
+  T->>L: query_molecules(family)
+  L-->>T: count=22670
+  T-->>M: verdict=conflict, percent=+2167%
+  T-->>UI: SSE conflict
+  UI->>UI: 渲染「数据核对」卡片
+```
+
+- 数字比较由 `ai/verify.mjs` 完成，模型不参与计算。
+- 工具返回的分子（`query_molecules` / `find_similar` / `explain`）会渲染成 chip；点击后收起对话、选中该分子并飞到详情卡。
+- 研究简报包含「数据核对」和「分子记录」两节，冲突会保留在简报里。
+
+## 9. 安全边界
 
 - API Key 只存在服务端 `.env` / `.run/ai-config.json`，`GET /api/ai/config` 只返回 `hasKey`，不返回 Key。
 - 公网演示可设 `AI_CONFIG_LOCK=1` 锁定配置写操作；设置 `AI_ADMIN_TOKEN` 后，写配置必须带管理令牌。

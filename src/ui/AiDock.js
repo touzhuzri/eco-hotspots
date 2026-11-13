@@ -134,6 +134,7 @@ const TOOL_LABELS = {
   list_research_sources: "查看数据源",
   search_knowledge: "检索知识库",
   analyze_table: "分析表格",
+  verify_claim: "核对数据",
 };
 
 const LAST_RESEARCH_KEY = "worldtree:last-research:v1";
@@ -734,6 +735,8 @@ export function mountAiDock(el, { scene } = {}) {
       sources: [],
       toolLog: [],
       charts: [],
+      molecules: [],
+      conflicts: [],
     };
   }
 
@@ -886,6 +889,9 @@ export function mountAiDock(el, { scene } = {}) {
       li.classList.add("is-done");
     });
     if (last.reflection) renderReflection(live, last.reflection);
+    if (Array.isArray(last.conflicts)) {
+      last.conflicts.forEach((c) => renderConflict(live, c));
+    }
     live.text.innerHTML = mdToHtml(
       `已恢复上次研究：**${last.plan.goal}**\n\n${
         last.answer
@@ -964,6 +970,8 @@ export function mountAiDock(el, { scene } = {}) {
     sources,
     tools,
     charts,
+    molecules,
+    conflicts,
   }) {
     const now = new Date();
     const stamp = now.toISOString().slice(0, 10);
@@ -1001,6 +1009,21 @@ export function mountAiDock(el, { scene } = {}) {
         reflectionLines.push(`- 下一步：${item}`);
       }
     }
+    const conflictLines = [];
+    for (const c of conflicts || []) {
+      conflictLines.push(
+        `- ${c.source_label || "资料"} 声称 ${Number(c.claimed || 0).toLocaleString(
+          "zh-CN"
+        )}，LOTUS 实际 ${Number(c.actual || 0).toLocaleString("zh-CN")}，差异 ${
+          Number(c.percent || 0) > 0 ? "+" : ""
+        }${Number(c.percent || 0).toFixed(1)}%（容差 ±${Number(
+          c.tolerance_pct || 0
+        )}%）：${c.verdict === "consistent" ? "一致" : "有差异"}`
+      );
+    }
+    const moleculeLines = (molecules || []).map(
+      (m) => `- ${m.name || "未命名"} · InChIKey \`${m.inchikey}\``
+    );
     const chartLines = [];
     for (const c of charts || []) {
       chartLines.push(`### ${c.title || "图表"}`, "");
@@ -1071,6 +1094,12 @@ export function mountAiDock(el, { scene } = {}) {
       "",
       ...(reflectionLines.length
         ? ["## 研究反思", "", ...reflectionLines, ""]
+        : []),
+      ...(conflictLines.length
+        ? ["## 数据核对", "", ...conflictLines, ""]
+        : []),
+      ...(moleculeLines.length
+        ? ["## 分子记录", "", ...moleculeLines, ""]
         : []),
       "## 工具记录",
       "",
@@ -1234,6 +1263,71 @@ export function mountAiDock(el, { scene } = {}) {
     }
   }
 
+  /** 把工具返回的分子做成可点击 chip：点开右侧详情卡并定位 3D */
+  function addMoleculeChips(live, name, result) {
+    if (!live?.cards || !result || result.ok === false) return;
+    const rows = [];
+    const push = (m) => {
+      const key = String(m?.inchikey || "").trim();
+      if (!key) return;
+      const label = String(m?.name || m?.nameZh || key).slice(0, 80);
+      rows.push({ key, label });
+    };
+    if (name === "query_molecules") (result.samples || []).slice(0, 5).forEach(push);
+    else if (name === "find_similar") (result.results || []).slice(0, 5).forEach(push);
+    else if (name === "explain") (result.molecules || []).slice(0, 5).forEach(push);
+    if (!rows.length) return;
+
+    live._molKeys ||= new Set();
+    live.molecules ||= [];
+    let box = live.cards.querySelector(".ai-mol-chips");
+    if (!box) {
+      box = document.createElement("div");
+      box.className = "ai-mol-chips";
+      box.innerHTML = `<span>点开核对</span>`;
+      live.cards.appendChild(box);
+    }
+    for (const row of rows) {
+      if (live._molKeys.has(row.key)) continue;
+      live._molKeys.add(row.key);
+      live.molecules.push({ name: row.label, inchikey: row.key });
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.dataset.molKey = row.key;
+      btn.textContent = row.label;
+      btn.title = `在详情卡中打开 ${row.label}（${row.key}）`;
+      box.appendChild(btn);
+    }
+  }
+
+  function renderConflict(live, conflict) {
+    if (!live?.cards || !conflict || !conflict.ok) return;
+    live.conflicts ||= [];
+    live.conflicts.push(conflict);
+    const consistent = conflict.verdict === "consistent";
+    const n = (v) => Number(v || 0).toLocaleString("zh-CN");
+    const card = document.createElement("div");
+    card.className = `ai-conflict ${consistent ? "is-ok" : "is-warn"}`;
+    card.innerHTML = `
+      <div class="ai-conflict-head">
+        <span>数据核对</span>
+        <em>${consistent ? "一致" : "有差异"}</em>
+      </div>
+      <div class="ai-conflict-row"><b>${esc(
+        conflict.source_label || "资料"
+      )} 声称</b><span>${n(conflict.claimed)}</span></div>
+      <div class="ai-conflict-row"><b>LOTUS 260413 实际</b><span>${n(
+        conflict.actual
+      )}</span></div>
+      <div class="ai-conflict-row"><b>差异</b><span>${
+        conflict.percent > 0 ? "+" : ""
+      }${Number(conflict.percent || 0).toFixed(1)}%（容差 ±${Number(
+        conflict.tolerance_pct || 0
+      )}%）</span></div>
+      <p>${esc(conflict.note || "")}</p>`;
+    live.cards.appendChild(card);
+  }
+
   function addToolChip(live, name, result) {
     let summary = "";
     if (name === "query_molecules" && result?.ok) {
@@ -1273,6 +1367,11 @@ export function mountAiDock(el, { scene } = {}) {
       summary = `${result.rows ?? 0} 行${
         result.group_by ? ` · 按${result.group_by}` : ""
       }`;
+    } else if (name === "verify_claim" && result?.ok) {
+      summary =
+        result.verdict === "consistent"
+          ? "与 LOTUS 一致"
+          : `与 LOTUS 差 ${Math.abs(Number(result.percent || 0)).toFixed(1)}%`;
     } else if (result?.error) {
       summary = String(result.error).slice(0, 60);
     }
@@ -1286,6 +1385,7 @@ export function mountAiDock(el, { scene } = {}) {
       name: TOOL_LABELS[name] || name,
       summary: summary || (result?.ok === false ? "失败" : "已执行"),
     });
+    addMoleculeChips(live, name, result);
   }
 
   /** 知识库引用：按 文档 + 段落 去重，折叠显示原文片段 */
@@ -1564,6 +1664,8 @@ export function mountAiDock(el, { scene } = {}) {
             renderVision(live, event.analysis);
           } else if (event.type === "reflection") {
             renderReflection(live, event.reflection);
+          } else if (event.type === "conflict") {
+            renderConflict(live, event.conflict);
           } else if (event.type === "plan") {
             renderPlan(live, event);
           } else if (event.type === "step") {
@@ -1625,6 +1727,8 @@ export function mountAiDock(el, { scene } = {}) {
           sources: live.sources,
           tools: live.toolLog,
           charts: live.charts,
+          molecules: live.molecules,
+          conflicts: live.conflicts,
         });
         if (researchMode) {
           saveLastResearch({
@@ -1640,6 +1744,8 @@ export function mountAiDock(el, { scene } = {}) {
             sources: live.sources.slice(-20),
             tools: live.toolLog.slice(-20),
             charts: live.charts.slice(-5),
+            molecules: live.molecules.slice(-20),
+            conflicts: live.conflicts.slice(-10),
             ts: Date.now(),
           });
           refreshContinueBtn();
@@ -1914,6 +2020,18 @@ export function mountAiDock(el, { scene } = {}) {
 
   // 建议 chips
   el.addEventListener("click", (e) => {
+    const mol = e.target.closest("[data-mol-key]");
+    if (mol) {
+      const key = mol.dataset.molKey || "";
+      const ok = scene?.selectByInchikey?.(key);
+      if (ok) {
+        setOpen(false);
+      } else {
+        mol.classList.add("is-missing");
+        mol.title = "世界树里没有找到这颗分子";
+      }
+      return;
+    }
     const shuttle = e.target.closest("[data-ai-shuttle]");
     if (shuttle) {
       setOpen(false);
