@@ -99,7 +99,7 @@ python3 pipeline/build-molecule-similarity.py --limit 2000
 
 | 类型 | 扩展名 | 说明 |
 | --- | --- | --- |
-| PDF | `.pdf` | 抽取内容流里的 Tj/TJ 文本；扫描件、加密 PDF、CID 字体 PDF 可能读不到 |
+| PDF | `.pdf` | 抽取内容流里的 Tj/TJ 文本；支持 Flate / ASCII85 / ASCIIHex / RunLength 和间接 `/Filter` 引用。扫描件、加密 PDF、没有 ToUnicode 的 CID 字体 PDF 仍可能读不到，会返回具体原因 |
 | Word | `.docx` | 解压 `word/document.xml`，保留段落换行 |
 | Excel | `.xlsx` | 读取 `sharedStrings.xml` + 第一个工作表，输出制表符分隔行 |
 | PPT | `.pptx` | 按页读取 `<a:t>` 文本 |
@@ -114,6 +114,14 @@ POST /api/ai/file
 ```
 
 限制：单文件 16MB；提取文本最多返回 60,000 字；聊天时每个附件最多注入 12,000 字，总计 24,000 字。前端选文件后立刻解析并把状态显示在附件 chip 上，发送时通过 `attachments` 字段随问题提交。
+
+PDF 读不到时先单独诊断：
+
+```bash
+node scripts/pdf-text.mjs "path/to/paper.pdf"
+```
+
+输出会说明是成功提取、扫描件、加密，还是没有可用的 ToUnicode 字体编码。扫描版 PDF 需要先用外部 OCR 转成文字再上传。
 
 `AI_MAX_TOKENS` 会在服务端钳制到 `[1, 98304]`，避免 `.env` 里填了越界值后聊天接口直接 400（GLM 的上限）。
 

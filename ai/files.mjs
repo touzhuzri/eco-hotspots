@@ -268,26 +268,118 @@ function decodePdfBytes(bytes, font) {
   return bytes.toString("latin1");
 }
 
-/** 支持 Filter 的流解压；图片/字体程序等返回 null */
-function pdfStreamData(o) {
-  if (!o?.data) return null;
-  const filter = (/\/Filter\s*(\[[^\]]*\]|\/\w+)/.exec(o.dict) || [])[1] || "";
-  if (!filter) return o.data;
-  if (/\/(DCTDecode|JPXDecode|JBIG2Decode|CCITTFaxDecode)\b/.test(filter)) return null;
-  if (/\/(FlateDecode|Fl)\b/.test(filter)) {
-    try {
-      return inflateSync(o.data, { maxOutputLength: MAX_INFLATE });
-    } catch (_) {
-      try {
-        return inflateRawSync(o.data, { maxOutputLength: MAX_INFLATE });
-      } catch (_) {
-        return null;
-      }
+function ascii85Decode(buf) {
+  let s = buf.toString("latin1").replace(/\s+/g, "");
+  if (s.startsWith("<~")) s = s.slice(2);
+  const end = s.indexOf("~>");
+  if (end >= 0) s = s.slice(0, end);
+  const out = [];
+  let group = [];
+  const push = (n) => {
+    out.push((n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255);
+  };
+  for (const ch of s) {
+    if (ch === "z" && group.length === 0) {
+      out.push(0, 0, 0, 0);
+      continue;
+    }
+    const code = ch.charCodeAt(0) - 33;
+    if (code < 0 || code > 84) continue;
+    group.push(code);
+    if (group.length === 5) {
+      let n = 0;
+      for (const c of group) n = n * 85 + c;
+      push(n);
+      group = [];
+    }
+    if (out.length > MAX_INFLATE) return null;
+  }
+  if (group.length) {
+    const pad = 5 - group.length;
+    while (group.length < 5) group.push(84);
+    let n = 0;
+    for (const c of group) n = n * 85 + c;
+    const bytes = [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
+    out.push(...bytes.slice(0, 4 - pad));
+  }
+  return Buffer.from(out);
+}
+
+function asciiHexDecode(buf) {
+  const s = buf.toString("latin1").replace(/[^0-9A-Fa-f]/g, "");
+  const out = [];
+  for (let i = 0; i < s.length; i += 2) {
+    out.push(parseInt(s.slice(i, i + 2).padEnd(2, "0"), 16));
+    if (out.length > MAX_INFLATE) return null;
+  }
+  return Buffer.from(out);
+}
+
+function runLengthDecode(buf) {
+  const out = [];
+  let i = 0;
+  while (i < buf.length) {
+    const n = buf[i++];
+    if (n === 128) break;
+    if (n < 128) {
+      for (let k = 0; k <= n && i < buf.length; k++) out.push(buf[i++]);
+    } else {
+      const b = buf[i++] || 0;
+      for (let k = 0; k < 257 - n; k++) out.push(b);
+    }
+    if (out.length > MAX_INFLATE) return null;
+  }
+  return Buffer.from(out);
+}
+
+/** 解析 /Filter；支持直接名称、数组和间接引用 */
+function pdfFilterNames(o, objs) {
+  let src = (/\/Filter\s*(\[[^\]]*\]|\/[A-Za-z0-9]+)/.exec(o.dict) || [])[1] || "";
+  if (!src) {
+    const ref = /\/Filter\s+(\d+)\s+\d+\s+R/.exec(o.dict);
+    const target = ref && objs ? objs.get(Number(ref[1])) : null;
+    if (target) {
+      src = target.dict;
+      const direct = /\/Filter\s*(\[[^\]]*\]|\/[A-Za-z0-9]+)/.exec(src);
+      if (direct) src = direct[1];
     }
   }
-  // 只处理无过滤或 Flate；其余（ASCII85 等）不支持解码
-  if (/^\[\s*\]$/.test(filter.trim())) return o.data;
-  return null;
+  if (!src) return [];
+  return [...src.matchAll(/\/([A-Za-z0-9]+)/g)].map((m) => m[1]);
+}
+
+/** 支持 Filter 的流解压；图片/字体程序等返回 null */
+function pdfStreamData(o, objs) {
+  if (!o?.data) return null;
+  const names = pdfFilterNames(o, objs);
+  if (!names.length) return o.data;
+  if (names.some((n) => /^(DCTDecode|JPXDecode|JBIG2Decode|CCITTFaxDecode|Crypt)$/.test(n))) {
+    return null;
+  }
+  let data = o.data;
+  for (const name of names) {
+    if (name === "FlateDecode" || name === "Fl") {
+      try {
+        data = inflateSync(data, { maxOutputLength: MAX_INFLATE });
+      } catch (_) {
+        try {
+          data = inflateRawSync(data, { maxOutputLength: MAX_INFLATE });
+        } catch (_) {
+          return null;
+        }
+      }
+    } else if (name === "ASCII85Decode" || name === "A85") {
+      data = ascii85Decode(data);
+    } else if (name === "ASCIIHexDecode" || name === "AHx") {
+      data = asciiHexDecode(data);
+    } else if (name === "RunLengthDecode" || name === "RL") {
+      data = runLengthDecode(data);
+    } else {
+      return null;
+    }
+    if (!data) return null;
+  }
+  return data;
 }
 
 /** 粗解析 PDF 对象（含流），用于跳过图片/字体流、读取 ToUnicode */
@@ -343,7 +435,7 @@ function pdfObjects(buf) {
   const extra = [];
   for (const o of objs.values()) {
     if (!/\/Type\s*\/ObjStm\b/.test(o.dict) || !o.data) continue;
-    const data = pdfStreamData(o);
+    const data = pdfStreamData(o, objs);
     if (!data) continue;
     const first = Number((/\/First\s+(\d+)/.exec(o.dict) || [])[1]);
     const n = Number((/\/N\s+(\d+)/.exec(o.dict) || [])[1]);
@@ -372,7 +464,7 @@ function pdfFonts(objs) {
     const m = /\/ToUnicode\s+(\d+)\s+\d+\s+R/.exec(o.dict);
     if (!m) continue;
     const target = objs.get(Number(m[1]));
-    const data = pdfStreamData(target);
+    const data = pdfStreamData(target, objs);
     if (!data) continue;
     const parsed = pdfCMap(data.toString("latin1"));
     if (parsed.map.size) cmaps.set(o.num, parsed);
@@ -506,7 +598,7 @@ function pdfToText(buf) {
     }
     if (/\/Subtype\s*\/(Type1C|CIDFontType0C|OpenType|XML)\b/.test(d)) continue;
     if (/\/Length1\b/.test(d)) continue;
-    const data = pdfStreamData(o);
+    const data = pdfStreamData(o, objs);
     if (!data) continue;
     const src = data.toString("latin1");
     // 正文内容流一定同时有 BT 和文字绘制操作
@@ -517,14 +609,21 @@ function pdfToText(buf) {
       streams++;
     }
   }
-  const text = chunks.join("\n");
-  if (!text.trim()) {
+  let text = chunks.join("\n");
+  const nulCount = (text.match(/\u0000/g) || []).length;
+  if (nulCount) {
+    text = text.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
+  }
+  if (text.trim() && printableRatio(text) >= 0.5) {
     return {
-      text: "",
-      note: "没有从 PDF 中提取到文字。它可能是扫描件，或使用了暂不支持的字体编码。",
+      text,
+      note: nulCount ? "部分字符未能解码，已跳过无法识别的字节。" : "",
     };
   }
-  return { text, note: "" };
+  return {
+    text: "",
+    note: "没有从 PDF 中提取到文字。它可能是扫描件、加密文件，或使用了暂不支持的字体/压缩编码。",
+  };
 }
 
 // ── ZIP（DOCX / XLSX / PPTX） ───────────────────────────────
@@ -709,22 +808,44 @@ export function parseFileBuffer(name, mime, buf) {
       };
     }
 
-    // 二进制误判：出现大量 NUL 字符就当没读到
+    // 二进制误判：先尝试清掉无法识别的控制字节；仍然不可读才报错
     const nul = (raw.match(/\u0000/g) || []).length;
     if (nul > Math.max(8, raw.length * 0.02)) {
+      const cleaned = raw.replace(
+        /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,
+        ""
+      );
+      if (cleaned.trim() && printableRatio(cleaned) >= 0.5) {
+        raw = cleaned;
+        note = note || "已跳过无法识别的字节，文字可能不完整。";
+      } else {
+        return {
+          ok: false,
+          kind,
+          name,
+          chars: 0,
+          text: "",
+          error:
+            note ||
+            "文件内容看起来是二进制，未能提取文字。若这是扫描版 PDF，需要先用 OCR 转换。",
+        };
+      }
+    }
+
+    const clipped = clip(raw);
+    if (!clipped.chars && !note) {
+      note = "没有读到可用文字。";
+    }
+    if (!clipped.chars && kind === "pdf" && note) {
       return {
         ok: false,
         kind,
         name,
         chars: 0,
         text: "",
-        error: "文件内容看起来是二进制，未能提取文字。",
+        note,
+        error: note,
       };
-    }
-
-    const clipped = clip(raw);
-    if (!clipped.chars && !note) {
-      note = "没有读到可用文字。";
     }
     return {
       ok: clipped.chars > 0,
