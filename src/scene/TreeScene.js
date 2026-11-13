@@ -816,7 +816,7 @@ export function mountTreeScene(rootEl) {
     else if (action === "tour") startRandomCompanionNarration();
     else if (action === "shuttle") startStarShuttle();
     else if (action === "ask") {
-      window.dispatchEvent(new CustomEvent("eco:ai-open"));
+      openAiWorkbench();
     }
   });
   // 详情卡里的「让小助手介绍」/旧版「让小助手讲讲」
@@ -5886,77 +5886,61 @@ export function mountTreeScene(rootEl) {
     companion.startGuide(
       [
         {
-          px: Math.max(left + 130, W * 0.2),
-          py: H0 * 0.62,
-          duration: 3.2,
+          px: mid,
+          py: H0 * 0.42,
+          duration: 3.4,
           gesture: "wave",
           expression: "happy",
-          text: "你好，我是苯环小助手。先带你认识一下界面。",
+          text: "你好，我是苯环小助手。第一次来，我用 15 秒带你认一下界面。拖拽旋转，滚轮缩放。",
         },
         {
           px: Math.max(left + 90, W * 0.15),
           py: H0 * 0.4,
-          duration: 4,
+          duration: 3.6,
           gesture: "point",
           expression: "curious",
-          text: "左边是探索栏：类群、层位、化学分类和来源科都在这里筛选。",
+          text: "左边是探索栏：搜索、类群、层系、化学分类和来源科都在这里筛选。",
         },
         {
           px: Math.min(right - 110, W * 0.8),
           py: H0 * 0.38,
-          duration: 4,
+          duration: 3.6,
           gesture: "point",
           expression: "curious",
           text: "点一颗星，右边会展开它的结构式、性质和来源。",
         },
         {
           px: mid,
-          py: H0 * 0.7,
+          py: H0 * 0.54,
           duration: 4,
           gesture: "point",
-          expression: "happy",
-          text: "底部是 AI 分析坞，可以查数据、画图、找相似分子。",
-        },
-        {
-          px: W * 0.5,
-          py: H0 * 0.52,
-          duration: 2.6,
-          gesture: "pull",
           expression: "excited",
-          drag: true,
-          text: "看好了，我拉动世界树给你看。",
+          text: "底部是 AI 研究台，也是核心入口：查 LOTUS、读论文、识图、分析表格。",
         },
         {
-          px: Math.max(left + 150, W * 0.2),
-          py: H0 * 0.78,
-          duration: 3,
+          px: mid,
+          py: H0 * 0.5,
+          duration: 4.2,
           gesture: "wave",
           expression: "happy",
-          text: "逛完啦，随时可以再叫我。",
-        },
-        {
-          px: Math.max(left + 170, W * 0.24),
-          py: H0 * 0.52,
-          duration: 6,
-          gesture: "point",
-          expression: "excited",
-          openAi: true,
-          text: "最后重点看这里：我帮你打开 AI 研究台。查 LOTUS、读论文、识图、分析表格，都在这里完成。",
+          text: "我帮你打开它。先从任务卡里选一个，或者直接问我。",
         },
       ],
       {
-        onStep: (i, step) => {
-          if (step.drag) startGuideDrag();
-          if (step.openAi) {
-            window.__wtAutoTourPending = false;
-            // 等小助手把这句讲完再打开 AI 研究台，避免它被面板盖住
-            setTimeout(() => {
-              window.dispatchEvent(new CustomEvent("eco:ai-open"));
-            }, 6200);
-          }
-        },
+        // 讲完或点「跳过」都进入 AI 研究台，不把访客留在原地
+        onDone: openAiWorkbench,
+        onSkip: openAiWorkbench,
       }
     );
+  }
+
+  /** 收起其他浮层并打开 AI 研究台 */
+  function openAiWorkbench() {
+    window.__wtAutoTourPending = false;
+    window.dispatchEvent(new CustomEvent("eco:ui-close"));
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent("eco:ai-open"));
+    }, 180);
   }
 
   /** 小助手带领的「穿梭群星」：贴近星点、拉远看星云，再掠过根际回到全树 */
@@ -6090,6 +6074,7 @@ export function mountTreeScene(rootEl) {
     if (document.body.classList.contains("ui-intro")) return;
     if (document.visibilityState !== "visible") return;
     if (getState().selectedId) return;
+    if (document.body.classList.contains("ai-dock-open")) return;
     autoTourSeen = true;
     // 导览已经介绍过，之后点小助手直接出快捷菜单，不再重复自动导览
     autoNarrateSeen = true;
@@ -6103,7 +6088,7 @@ export function mountTreeScene(rootEl) {
     if (autoTourSeen) return;
     window.__wtAutoTourPending = true;
     clearTimeout(autoTourTimer);
-    autoTourTimer = setTimeout(maybeAutoCompanionTour, 2800);
+    autoTourTimer = setTimeout(maybeAutoCompanionTour, 2000);
   });
   setTimeout(() => {
     if (autoTourSeen) return;

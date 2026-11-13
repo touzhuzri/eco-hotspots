@@ -75,51 +75,6 @@ async function friendlyChatError(err) {
   return friendlyError(raw);
 }
 
-const INTRO_OPTIONS = [
-  {
-    label: "黄酮类按科分布",
-    prompt: "找出黄酮类分子，按来源科分布",
-  },
-  {
-    label: "带我去根际",
-    prompt: "带我去根际看看",
-  },
-  {
-    label: "带我逛逛",
-    random: true,
-    title: "随机挑一颗分子，让小助手滑到右边讲讲",
-  },
-  {
-    label: "找相似分子",
-    prompt: "找和当前选中分子相似的分子",
-    title: "先在世界树里选中一颗分子",
-  },
-  {
-    label: "查论文 / DOI",
-    prompt: "查一下青蒿素抗疟研究的论文，给出标题、期刊、年份和 DOI",
-    title: "OpenAlex / Crossref / Europe PMC；知网、万方、Nature、WoS 提供检索入口",
-  },
-  {
-    label: "上传 PDF / CSV 试试",
-    prompt: "上传一份 PDF、Word 或 CSV 试试",
-  },
-  {
-    label: "建立我的知识库",
-    kb: true,
-    title: "上传 PDF / Word / CSV，之后回答会自动检索并标注出处",
-  },
-  {
-    label: "上传图片识图",
-    image: true,
-    title: "结构式、论文图表、实验照片都可以先识别再核对",
-  },
-  {
-    label: "研究任务",
-    research: true,
-    title: "多步规划、工具执行，并生成可导出的研究简报",
-  },
-];
-
 const CAPABILITIES = [
   {
     label: "自然语言查询",
@@ -331,27 +286,6 @@ export function mountAiDock(el, { scene } = {}) {
                               : `data-ai-suggest="${esc(c.prompt)}"`
                   }${c.title ? ` title="${esc(c.title)}"` : ""}>${esc(
                     c.label
-                  )}</button>`
-              ).join("")}
-            </div>
-            <p class="ai-intro-hint">想先试试？点一个能力，或者直接输入你的问题：</p>
-            <div class="ai-intro-options">
-              ${INTRO_OPTIONS.map(
-                (o) =>
-                  `<button type="button" ${
-                    o.image
-                      ? `data-ai-image="1"`
-                      : o.tour
-                        ? `data-ai-tour="1"`
-                        : o.kb
-                          ? `data-ai-kb="1"`
-                          : o.random
-                            ? `data-ai-random="1"`
-                            : o.research
-                              ? `data-ai-research="1"`
-                              : `data-ai-suggest="${esc(o.prompt)}"`
-                  }${o.title ? ` title="${esc(o.title)}"` : ""}>${esc(
-                    o.label
                   )}</button>`
               ).join("")}
             </div>

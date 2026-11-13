@@ -857,6 +857,8 @@ export function createCompanion() {
   let guideStepT0 = -1;
   let guideOnStep = null;
   let guideOnTap = null;
+  let guideOnSkip = null;
+  let guideOnDone = null;
   let guideTapped = false;
   let guideTapT = -1;
   let guideSubEl = null;
@@ -1559,10 +1561,13 @@ export function createCompanion() {
     document.body.appendChild(el);
     guideSubEl = el;
     guideSubTextEl = el.querySelector(".companion-subtitle-text");
-    el.querySelector(".companion-subtitle-skip").addEventListener(
-      "click",
-      stopGuide
-    );
+    el.querySelector(".companion-subtitle-skip").addEventListener("click", () => {
+      const skip = guideOnSkip;
+      guideOnSkip = null;
+      guideOnDone = null;
+      stopGuide();
+      skip?.();
+    });
   }
 
   /**
@@ -1605,6 +1610,8 @@ export function createCompanion() {
     guideStepT0 = -1;
     guideOnStep = opts.onStep || null;
     guideOnTap = opts.onTap || null;
+    guideOnSkip = opts.onSkip || null;
+    guideOnDone = opts.onDone || null;
     guideTapped = false;
     guideTapT = -1;
     guideLastText = "";
@@ -1629,6 +1636,8 @@ export function createCompanion() {
     guideStepT0 = -1;
     guideOnStep = null;
     guideOnTap = null;
+    guideOnSkip = null;
+    guideOnDone = null;
     guideTapped = false;
     guideTapT = -1;
     guideLastText = "";
@@ -1769,7 +1778,13 @@ export function createCompanion() {
     if (u >= 1) {
       guideIndex++;
       guideStepT0 = -1;
-      if (guideIndex >= guideSteps.length) stopGuide();
+      if (guideIndex >= guideSteps.length) {
+        const done = guideOnDone;
+        guideOnDone = null;
+        guideOnSkip = null;
+        stopGuide();
+        done?.();
+      }
     }
   }
 
