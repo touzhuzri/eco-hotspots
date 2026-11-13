@@ -35,3 +35,6 @@ data/similarity/
 
 # 用户上传的知识库（正文 + 向量），只留在本机
 data/kb/
+
+# Agent 评测明细（每次运行生成）
+data/agent-eval/last-run.json

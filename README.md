@@ -54,6 +54,7 @@
 - [`docs/AI-ARCHITECTURE.md`](docs/AI-ARCHITECTURE.md)：AI 架构、研究任务、多模态、RAG 与文献检索流程图
 - [`docs/DEMO-SCRIPTS.md`](docs/DEMO-SCRIPTS.md)：2–3 分钟演示脚本
 - [`docs/rag-eval.md`](docs/rag-eval.md)：30 题检索评测与 Cite@4
+- [`docs/agent-eval.md`](docs/agent-eval.md)：18 条 Agent 任务级评测与基线
 - [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md)：运行指标与测量方法
 - [`docs/PUBLISH.md`](docs/PUBLISH.md)：公开发布前的检查清单
 
@@ -117,7 +118,7 @@
 7. 向量模型可与对话模型分开配置：可用 SiliconFlow `https://api.siliconflow.cn/v1` + `BAAI/bge-m3`（免费档，需实名认证），或智谱 `https://open.bigmodel.cn/api/paas/v4` + `embedding-3`（需单独开通 Embedding 资源包）；切换后点知识库面板「重建向量」，再用 `node scripts/rag-eval.mjs` 跑检索评测
 8. 运行指标：`GET /api/ai/metrics` 返回对话数、模型调用耗时、工具成功率、视觉与文献检索次数，不含问题正文和 Key，可直接作为参赛材料的量化证据
 
-AI 代理没有 npm 依赖；相似分子索引已生成在 `data/similarity/`，可用 `pipeline/build-molecule-similarity.py` 重建。内置知识库种子在 `data/kb-seed/`（随仓库提交），运行时正文和向量存在本机 `data/kb/`，已在 `.gitignore` 中忽略。表格统计的演示文件是 `demo/table-demo.csv`；单元测试用 `npm test`（Node 内置 test runner）。详见 [`ai/README.md`](ai/README.md)、[`docs/AI-ARCHITECTURE.md`](docs/AI-ARCHITECTURE.md) 和 [`data/kb-seed/README.md`](data/kb-seed/README.md)。
+AI 代理没有 npm 依赖；相似分子索引已生成在 `data/similarity/`，可用 `pipeline/build-molecule-similarity.py` 重建。内置知识库种子在 `data/kb-seed/`（随仓库提交），运行时正文和向量存在本机 `data/kb/`，已在 `.gitignore` 中忽略。表格统计的演示文件是 `demo/table-demo.csv`；单元测试用 `npm test`，端到端测试用 `npm run test:e2e`（mock 模型，不消耗 API）。详见 [`ai/README.md`](ai/README.md)、[`docs/AI-ARCHITECTURE.md`](docs/AI-ARCHITECTURE.md) 和 [`data/kb-seed/README.md`](data/kb-seed/README.md)。
 
 ### 方式 B：只预览前端
 

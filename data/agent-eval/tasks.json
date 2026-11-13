@@ -1,0 +1,143 @@
+[
+  {
+    "id": "lotus-family-flavon",
+    "q": "哪个科的黄酮最多？按来源科分布画图。",
+    "tools": ["query_molecules", "render_chart"],
+    "source": "lotus",
+    "keywords": ["黄酮", "科"]
+  },
+  {
+    "id": "lotus-asteraceae-count",
+    "q": "菊科在 LOTUS 里有多少条记录？",
+    "tools": ["query_molecules"],
+    "source": "lotus",
+    "keywords": ["菊科", "条"]
+  },
+  {
+    "id": "similar-quercetin",
+    "q": "找和槲皮素 quercetin 相似的分子。",
+    "tools": ["query_molecules", "find_similar"],
+    "source": "lotus",
+    "keywords": ["相似"]
+  },
+  {
+    "id": "alkaloid-mass",
+    "q": "列出分子量 300–500 的生物碱，给几个例子。",
+    "tools": ["query_molecules"],
+    "source": "lotus",
+    "keywords": ["生物碱"]
+  },
+  {
+    "id": "paper-quercetin",
+    "q": "检索槲皮素近五年的论文，给出标题、期刊和 DOI。",
+    "tools": ["search_papers"],
+    "source": "paper",
+    "keywords": ["DOI"]
+  },
+  {
+    "id": "paper-nature",
+    "q": "Nature 上关于天然产物研究进展的论文。",
+    "tools": ["search_papers"],
+    "source": "paper",
+    "keywords": ["Nature", "检索"]
+  },
+  {
+    "id": "cnki-access",
+    "q": "知网和万方能直接检索全文吗？",
+    "tools": ["list_research_sources", "search_papers"],
+    "source": "paper",
+    "keywords": ["登录", "入口"],
+    "limitation": true
+  },
+  {
+    "id": "lotus-count-kb",
+    "q": "LOTUS 数据集有多少条记录？",
+    "tools": ["search_knowledge", "query_molecules"],
+    "source": ["kb", "lotus"],
+    "keywords": ["227"]
+  },
+  {
+    "id": "lotus-limitation",
+    "q": "LOTUS 提供药效或临床结论吗？",
+    "tools": ["search_knowledge"],
+    "source": "kb",
+    "keywords": ["不提供", "没有", "不含"],
+    "limitation": true
+  },
+  {
+    "id": "explain-flavon",
+    "q": "解释黄酮类分子的来源和分类，并注明 LOTUS 出处。",
+    "tools": ["query_molecules", "explain", "search_knowledge"],
+    "source": "lotus",
+    "keywords": ["LOTUS"]
+  },
+  {
+    "id": "scene-roots",
+    "q": "带我去根际看看。",
+    "tools": ["scene_action"],
+    "source": "none",
+    "keywords": ["根际"]
+  },
+  {
+    "id": "web-latest",
+    "q": "查一下今天天然产物领域的最新新闻。",
+    "tools": ["web_search"],
+    "source": "web",
+    "keywords": ["网络", "来源"]
+  },
+  {
+    "id": "table-csv",
+    "q": "统计这张表格里每个科有多少条。",
+    "tools": ["analyze_table"],
+    "source": "none",
+    "keywords": ["菊科"],
+    "attachment": {
+      "name": "demo.csv",
+      "kind": "table",
+      "text": "名称,科\nA,菊科\nB,豆科\nC,菊科"
+    }
+  },
+  {
+    "id": "claim-conflict",
+    "q": "资料里说菊科有 1000 条，和 LOTUS 核对一下差异。",
+    "tools": ["verify_claim"],
+    "source": "lotus",
+    "keywords": ["1000", "差异"],
+    "attachment": {
+      "name": "claim.txt",
+      "kind": "text",
+      "text": "测试资料称：菊科有 1000 条记录。"
+    }
+  },
+  {
+    "id": "research-compare",
+    "q": "对比黄酮类和生物碱类的来源科分布，并生成研究简报。",
+    "mode": "research",
+    "tools": ["query_molecules", "render_chart"],
+    "source": "lotus",
+    "keywords": ["黄酮", "生物碱"],
+    "expectResearch": true
+  },
+  {
+    "id": "paper-rutz-journal",
+    "q": "Rutz 2022 的 LOTUS 论文发表在哪个期刊？",
+    "tools": ["search_knowledge", "search_papers"],
+    "source": ["kb", "paper"],
+    "keywords": ["eLife"]
+  },
+  {
+    "id": "clinical-advice",
+    "q": "这个数据能用来做临床用药建议吗？",
+    "tools": [],
+    "source": "none",
+    "keywords": ["不", "仅作"],
+    "limitation": true
+  },
+  {
+    "id": "inchikey",
+    "q": "LOTUS 里的 InChIKey 有什么用？",
+    "tools": ["search_knowledge"],
+    "source": "kb",
+    "keywords": ["InChIKey"]
+  }
+]

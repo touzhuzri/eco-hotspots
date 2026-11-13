@@ -404,6 +404,22 @@ AI_MAX_CONCURRENT_PER_IP=2
 - 站点代理会把真实来源 IP 写入 `x-real-ip`，AI 服务优先用它做限流；直连时退回 socket 地址。
 - 限流与并发是内存态，重启清零；指标接口的 `limits` 字段会返回当前配置。
 
+## 6.2 测试与评测
+
+```bash
+# 单元测试：表格解析、数据核对、PDF 提取
+npm test
+
+# 端到端测试：mock 模型，不消耗 API
+# 覆盖工具、研究反思、多模态、表格、数据核对、会话、配置锁、限流、并发、中止
+npm run test:e2e
+
+# Agent 任务级评测：真实模型，18 条任务
+AGENT_EVAL=1 node scripts/agent-eval.mjs
+```
+
+评测基线见 [`docs/agent-eval.md`](../docs/agent-eval.md) 和 [`docs/rag-eval.md`](../docs/rag-eval.md)。
+
 ## 7. 下一步
 
 1. 把回答级引用评测从默认 8 题扩到全部 30 题，并记录工具选择正确率
