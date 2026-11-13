@@ -3412,6 +3412,79 @@ body.idle .bottom-dock {
   .hand-rec { animation: none; }
 }
 
+/* ── 每次进入的导览提示 ───────────────────────────────── */
+.guide-prompt {
+  position: fixed;
+  left: 50%;
+  bottom: 116px;
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: min(520px, calc(100vw - 28px));
+  box-sizing: border-box;
+  padding: 12px 14px;
+  background: rgba(8, 16, 13, 0.84);
+  border: 1px solid rgba(140, 230, 170, 0.3);
+  border-radius: 14px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
+  backdrop-filter: var(--glass-blur-strong);
+  -webkit-backdrop-filter: var(--glass-blur-strong);
+}
+.guide-prompt[hidden] { display: none !important; }
+.guide-prompt-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+.guide-prompt-copy b {
+  color: #e6f6ec;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.guide-prompt-copy span {
+  color: #8aa99a;
+  font-size: 0.6rem;
+  line-height: 1.5;
+}
+.guide-prompt-actions {
+  display: flex;
+  gap: 7px;
+  flex-shrink: 0;
+}
+.guide-prompt-actions button {
+  border: 1px solid rgba(140, 160, 190, 0.2);
+  background: rgba(255, 255, 255, 0.03);
+  color: #9bb0a4;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 0.66rem;
+  cursor: pointer;
+}
+.guide-prompt-actions button:hover {
+  color: #e6f6ec;
+  border-color: rgba(140, 230, 170, 0.35);
+}
+.guide-prompt-actions button.primary {
+  border-color: transparent;
+  background: linear-gradient(135deg, #a8f0c0, #6fd694);
+  color: #0c150f;
+  font-weight: 600;
+}
+@media (max-width: 760px) {
+  .guide-prompt {
+    bottom: 92px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .guide-prompt-actions { justify-content: flex-end; }
+}
+
 /* ── 苯环小助手：对话气泡 ─────────────────────────────── */
 .companion-bubble {
   position: fixed;

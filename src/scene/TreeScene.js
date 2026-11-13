@@ -652,6 +652,16 @@ export function mountTreeScene(rootEl) {
       </div>
       <button type="button" class="ss-close" id="ssClose">关闭</button>
     </div>
+    <div class="guide-prompt" id="guidePrompt" hidden role="dialog" aria-label="界面导览">
+      <div class="guide-prompt-copy">
+        <b>要让我带你看看吗？</b>
+        <span>约 15 秒：世界树 → 左栏 → 右栏 → AI 研究台</span>
+      </div>
+      <div class="guide-prompt-actions">
+        <button type="button" id="guideSkip">跳过</button>
+        <button type="button" class="primary" id="guideStart">开始导览</button>
+      </div>
+    </div>
   `;
   const canvas = rootEl.querySelector("canvas");
   const hotspotsEl = rootEl.querySelector(".hotspots");
@@ -787,6 +797,11 @@ export function mountTreeScene(rootEl) {
               label: "带我穿梭群星",
               hint: "贴近星点再拉远，掠过冠层与根际",
             },
+            {
+              id: "tourGuide",
+              label: "看界面导览",
+              hint: "15 秒认识左栏、右栏和 AI 研究台",
+            },
             { id: "tour", label: "带我逛逛", hint: "随机挑一颗分子讲讲" },
             { id: "ask", label: "问问 AI", hint: "打开底部分析坞" },
           ]
@@ -796,6 +811,11 @@ export function mountTreeScene(rootEl) {
               label: "带我穿梭群星",
               hint: "镜头穿过星云，快速看冠层和根际",
               primary: true,
+            },
+            {
+              id: "tourGuide",
+              label: "看界面导览",
+              hint: "15 秒认识左栏、右栏和 AI 研究台",
             },
             {
               id: "tour",
@@ -814,6 +834,7 @@ export function mountTreeScene(rootEl) {
     else if (action === "analyze") quickAnalyze();
     else if (action === "narrate") startCompanionNarration();
     else if (action === "tour") startRandomCompanionNarration();
+    else if (action === "tourGuide") startCompanionTour();
     else if (action === "shuttle") startStarShuttle();
     else if (action === "ask") {
       openAiWorkbench();
@@ -5864,7 +5885,7 @@ export function mountTreeScene(rootEl) {
 
   /** 苯环小助手自己的界面导览：滑动、字幕、指向、拖动世界树 */
   function startCompanionTour() {
-    window.__wtAutoTourPending = false;
+    hideGuidePrompt();
     // 先收起 AI 坞/设置，避免小助手和字幕被界面挡住
     window.dispatchEvent(new CustomEvent("eco:ui-close"));
     const rail = document.querySelector(".explore-rail");
@@ -5936,7 +5957,6 @@ export function mountTreeScene(rootEl) {
 
   /** 收起其他浮层并打开 AI 研究台 */
   function openAiWorkbench() {
-    window.__wtAutoTourPending = false;
     window.dispatchEvent(new CustomEvent("eco:ui-close"));
     setTimeout(() => {
       window.dispatchEvent(new CustomEvent("eco:ai-open"));
@@ -5945,7 +5965,7 @@ export function mountTreeScene(rootEl) {
 
   /** 小助手带领的「穿梭群星」：贴近星点、拉远看星云，再掠过根际回到全树 */
   function startStarShuttle() {
-    window.__wtAutoTourPending = false;
+    hideGuidePrompt();
     window.dispatchEvent(new CustomEvent("eco:ui-close"));
     setSelected(null);
     companion.stopGuide();
@@ -6059,43 +6079,40 @@ export function mountTreeScene(rootEl) {
     );
   }
 
-  // 首次进入：世界树入场完成后，让小助手自动介绍界面，最后打开 AI 研究台。
-  // 只自动播一次；之后的引导仍可从「帮助 / 带我逛逛」手动打开。
-  let autoTourSeen = false;
-  try {
-    autoTourSeen =
-      localStorage.getItem("eco-companion-tour-auto-v1") === "1";
-  } catch (_) {}
-  let autoTourTimer = 0;
-  function maybeAutoCompanionTour() {
-    autoTourTimer = 0;
-    window.__wtAutoTourPending = false;
-    if (autoTourSeen) return;
-    if (document.body.classList.contains("ui-intro")) return;
-    if (document.visibilityState !== "visible") return;
-    if (getState().selectedId) return;
-    if (document.body.classList.contains("ai-dock-open")) return;
-    autoTourSeen = true;
-    // 导览已经介绍过，之后点小助手直接出快捷菜单，不再重复自动导览
-    autoNarrateSeen = true;
-    try {
-      localStorage.setItem("eco-companion-tour-auto-v1", "1");
-      localStorage.setItem("eco-companion-auto-v1", "1");
-    } catch (_) {}
-    startCompanionTour();
+  // 每次进入：世界树入场完成后询问是否让小助手带看；可跳过，不写 localStorage
+  const guidePromptEl = rootEl.querySelector("#guidePrompt");
+  let guidePromptShown = false;
+  let guidePromptTimer = 0;
+  function hideGuidePrompt() {
+    if (!guidePromptEl) return;
+    guidePromptEl.hidden = true;
+    clearTimeout(guidePromptTimer);
+    guidePromptTimer = 0;
   }
-  window.addEventListener("eco:intro-done", () => {
-    if (autoTourSeen) return;
-    window.__wtAutoTourPending = true;
-    clearTimeout(autoTourTimer);
-    autoTourTimer = setTimeout(maybeAutoCompanionTour, 2000);
-  });
-  setTimeout(() => {
-    if (autoTourSeen) return;
+  function showGuidePrompt() {
+    if (!guidePromptEl || guidePromptShown) return;
     if (document.body.classList.contains("ui-intro")) return;
-    window.__wtAutoTourPending = true;
-    maybeAutoCompanionTour();
-  }, 15000);
+    if (document.body.classList.contains("ai-dock-open")) return;
+    guidePromptShown = true;
+    guidePromptEl.hidden = false;
+    // 已经主动问过导览，点小助手时直接出快捷菜单
+    autoNarrateSeen = true;
+    document.body.classList.remove("idle");
+    lastInteraction = performance.now();
+    clearTimeout(guidePromptTimer);
+    guidePromptTimer = setTimeout(hideGuidePrompt, 30000);
+  }
+  window.addEventListener("eco:ai-open", hideGuidePrompt);
+  rootEl.querySelector("#guideSkip")?.addEventListener("click", hideGuidePrompt);
+  rootEl.querySelector("#guideStart")?.addEventListener("click", () => {
+    hideGuidePrompt();
+    startCompanionTour();
+  });
+  window.addEventListener("eco:intro-done", () => {
+    setTimeout(showGuidePrompt, 1200);
+  });
+  // 兜底：入场事件异常时，18 秒后再问一次
+  setTimeout(showGuidePrompt, 18000);
 
   /** 当前选中的分子星点（供导览/AI 共用） */
   function selectedPoint() {
