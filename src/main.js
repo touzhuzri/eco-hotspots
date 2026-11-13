@@ -12,11 +12,7 @@ import { mountIdleIntro } from "./ui/IdleIntro.js";
 import { mountHandGestures } from "./ui/HandGestures.js";
 import { mountAiDock } from "./ui/AiDock.js";
 import { mountAiSettings } from "./ui/AiSettings.js";
-import {
-  openTour,
-  openAbout,
-  maybeShowTour,
-} from "./ui/HelpOverlay.js";
+import { openTour, openAbout } from "./ui/HelpOverlay.js";
 
 /** 大屏按 1440×900 设计稿等比放大 UI；小屏继续走原有响应式断点 */
 function syncUiScale() {
@@ -272,7 +268,8 @@ async function boot() {
     introUiReleased = true;
     document.body.classList.remove("ui-intro");
     document.body.classList.remove("idle");
-    setTimeout(() => maybeShowTour(), 1800);
+    // 首次引导由小助手自动完成（见 TreeScene.startCompanionTour）；
+    // 这里不再弹旧的模态引导，避免两个导览叠加。
   }
   window.addEventListener("eco:intro-done", releaseIntroUI);
   // 兜底：极端情况下动画未触发，界面也不会一直消失

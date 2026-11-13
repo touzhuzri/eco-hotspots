@@ -173,6 +173,12 @@ function metricsSnapshot() {
 // 评审期公开演示时：配置写操作可锁定；聊天按 IP 限流并限制并发。
 const CONFIG_LOCK = /^(1|true|yes)$/i.test(process.env.AI_CONFIG_LOCK || "");
 const ADMIN_TOKEN = String(process.env.AI_ADMIN_TOKEN || "").trim();
+// 设置面板「AI / API」的解锁密码；未设置时复用管理令牌，再退回默认值
+const SETTINGS_PASSWORD = String(process.env.AI_SETTINGS_PASSWORD || "").trim();
+const DEFAULT_SETTINGS_PASSWORD = "worldtree";
+function effectiveSettingsPassword() {
+  return SETTINGS_PASSWORD || ADMIN_TOKEN || DEFAULT_SETTINGS_PASSWORD;
+}
 const RATE_CHAT = Math.max(1, Number(process.env.AI_RATE_LIMIT_CHAT || 12));
 const RATE_WRITE = Math.max(1, Number(process.env.AI_RATE_LIMIT_WRITE || 30));
 const RATE_READ = Math.max(1, Number(process.env.AI_RATE_LIMIT_READ || 240));
@@ -225,16 +231,16 @@ function safeEqual(a, b) {
   return x.length === y.length && timingSafeEqual(x, y);
 }
 
-/** 配置写权限：设置了 AI_ADMIN_TOKEN 时必须带令牌；否则由 AI_CONFIG_LOCK 决定 */
+/** 配置写权限：管理令牌或设置密码；都没配置时由 AI_CONFIG_LOCK 决定 */
 function configWriteAllowed(req) {
-  if (ADMIN_TOKEN) {
-    const token =
-      String(req.headers["x-ai-admin-token"] || "").trim() ||
-      String(req.headers.authorization || "")
-        .replace(/^Bearer\s+/i, "")
-        .trim();
-    return safeEqual(token, ADMIN_TOKEN);
-  }
+  const token =
+    String(req.headers["x-ai-admin-token"] || "").trim() ||
+    String(req.headers.authorization || "")
+      .replace(/^Bearer\s+/i, "")
+      .trim();
+  if (ADMIN_TOKEN && safeEqual(token, ADMIN_TOKEN)) return true;
+  if (SETTINGS_PASSWORD && safeEqual(token, SETTINGS_PASSWORD)) return true;
+  if (ADMIN_TOKEN || SETTINGS_PASSWORD) return false;
   return !CONFIG_LOCK;
 }
 
@@ -3289,6 +3295,30 @@ const server = createServer(async (req, res) => {
     return json(res, 405, { ok: false, error: "Method Not Allowed" });
   }
 
+  // 设置面板「AI / API」解锁：密码只在服务端比对，前端不保存明文
+  if (url.pathname === "/api/ai/settings/unlock" && req.method === "POST") {
+    const wait = rateLimit(req, "unlock", 10);
+    if (wait) {
+      return json(res, 429, {
+        ok: false,
+        error: `尝试过于频繁，请 ${wait} 秒后再试。`,
+      });
+    }
+    try {
+      const body = await readBody(req, 8 * 1024);
+      const password = String(body?.password || "");
+      if (password && safeEqual(password, effectiveSettingsPassword())) {
+        return json(res, 200, { ok: true });
+      }
+      return json(res, 403, { ok: false, error: "密码不正确" });
+    } catch (err) {
+      return json(res, 400, {
+        ok: false,
+        error: String(err?.message || err).slice(0, 120),
+      });
+    }
+  }
+
   if (url.pathname === "/api/ai/config" && req.method === "GET") {
     return json(res, 200, publicConfig());
   }
@@ -3627,6 +3657,16 @@ server.listen(PORT, HOST, () => {
       CONFIG.apiKey ? "set" : "missing"
     } maxToolRounds=${MAX_TOOL_ROUNDS}`
   );
+  console.log(
+    `[ai] config lock=${CONFIG_LOCK ? "on" : "off"} settingsPassword=${
+      SETTINGS_PASSWORD || ADMIN_TOKEN ? "set" : "default"
+    }`
+  );
+  if (!SETTINGS_PASSWORD && !ADMIN_TOKEN) {
+    console.warn(
+      "[ai] AI settings password is the default 'worldtree'; set AI_SETTINGS_PASSWORD or AI_ADMIN_TOKEN before public demo"
+    );
+  }
   const synced = ensureBuiltinKnowledge();
   const resumed = resumePending();
   const kb = kbStats();

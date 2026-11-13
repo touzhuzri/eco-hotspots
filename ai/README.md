@@ -354,6 +354,9 @@ AI_CONFIG_LOCK=1
 # 管理令牌：设置后，前端保存配置必须带 x-ai-admin-token
 AI_ADMIN_TOKEN=换成一段随机长字符串
 
+# 设置面板「AI / API」解锁密码；不填则复用 AI_ADMIN_TOKEN，再退回默认 worldtree
+AI_SETTINGS_PASSWORD=换成你自己的密码
+
 # 每个 IP 每分钟的请求上限
 AI_RATE_LIMIT_CHAT=12
 AI_RATE_LIMIT_WRITE=30
@@ -366,6 +369,8 @@ AI_MAX_CONCURRENT_PER_IP=2
 
 行为：
 
+- 设置面板的「AI / API」区域默认显示锁定卡片；输入管理密码后才会渲染模型、视觉和向量配置。密码由 `POST /api/ai/settings/unlock` 在服务端比对，前端不保存明文；关闭设置面板会自动重新锁定。
+- 未配置任何密码时，解锁密码默认为 `worldtree`，公网演示前务必修改。
 - `POST /api/ai/config` 在锁定或设置了管理令牌但没有正确令牌时返回 403；设置面板会提示输入管理令牌，令牌只存在浏览器 localStorage，不发往第三方。
 - `/api/ai/chat` 超过每 IP 每分钟上限返回 429；同一 IP 的并行聊天超过上限也返回 429，避免一个人占满额度。
 - 站点代理会把真实来源 IP 写入 `x-real-ip`，AI 服务优先用它做限流；直连时退回 socket 地址。

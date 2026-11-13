@@ -1807,6 +1807,9 @@ export function mountAiDock(el, { scene } = {}) {
   // 小助手快捷方式：打开分析坞 / 直接提交一条分析请求
   window.addEventListener("eco:ai-open", () => {
     setOpen(true);
+    try {
+      localStorage.setItem("worldtree:ai-auto-open:v1", "1");
+    } catch (_) {}
     setTimeout(() => input.focus(), 60);
   });
   window.addEventListener("eco:ai-ask", (e) => {
@@ -1833,7 +1836,10 @@ export function mountAiDock(el, { scene } = {}) {
   function autoOpenOnce() {
     try {
       if (localStorage.getItem(AI_AUTO_OPEN_KEY)) return;
+      // 首次进入由小助手导览负责打开；这里只处理已经看过导览的访客
+      if (localStorage.getItem("eco-companion-tour-auto-v1") !== "1") return;
     } catch (_) {}
+    if (window.__wtAutoTourPending) return;
     if (window.innerWidth < 900) return;
     if (document.body.classList.contains("ui-intro")) return;
     if (el.classList.contains("is-open")) return;

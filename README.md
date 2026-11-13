@@ -140,7 +140,7 @@ node deploy/claim-server.mjs
 
 完整的部署、备份、回滚、零环境应急与排障手册见 [`docs/DEPLOYMENT_HANDOVER.md`](docs/DEPLOYMENT_HANDOVER.md)。
 
-公网评审演示建议在 `ai/.env` 打开防护（默认值见 `ai/.env.example`）：`AI_CONFIG_LOCK=1` 锁定前端配置写操作，`AI_ADMIN_TOKEN` 设置管理令牌，`AI_RATE_LIMIT_CHAT` / `AI_MAX_CONCURRENT_CHATS` 限制刷额度；站点代理会把真实来源 IP 以 `x-real-ip` 传给 AI 服务用于限流。
+公网评审演示建议在 `ai/.env` 打开防护（默认值见 `ai/.env.example`）：`AI_CONFIG_LOCK=1` 锁定前端配置写操作，`AI_ADMIN_TOKEN` / `AI_SETTINGS_PASSWORD` 设置管理令牌和设置面板解锁密码（默认 `worldtree`，公网前务必修改），`AI_RATE_LIMIT_CHAT` / `AI_MAX_CONCURRENT_CHATS` 限制刷额度；站点代理会把真实来源 IP 以 `x-real-ip` 传给 AI 服务用于限流。
 
 如果拿到的是校园离线一体包，先看包内 `README-FIRST.md`，解压后执行 `./install-offline.sh`。
 

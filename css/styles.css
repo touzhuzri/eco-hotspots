@@ -4485,6 +4485,65 @@ body.ui-intro .ai-dock { display: none; }
 .ss-ai-status.ok { color: #9fe8b8; }
 .ss-ai-status.err { color: #f0b0b0; }
 
+/* AI / API 设置锁 */
+.ss-ai-lock {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px;
+  border: 1px solid rgba(140, 160, 190, 0.18);
+  border-radius: 9px;
+  background: rgba(3, 8, 14, 0.4);
+}
+.ss-ai-lock[hidden],
+.ss-ai-config[hidden] { display: none !important; }
+.ss-ai-lock-hint {
+  margin: 0;
+  color: #8aa0b0;
+  font-size: 0.6rem;
+  line-height: 1.55;
+}
+.ss-ai-lock-row {
+  display: flex;
+  gap: 6px;
+}
+.ss-ai-lock-row input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid rgba(140, 160, 190, 0.22);
+  background: rgba(3, 8, 14, 0.55);
+  color: #dbe9e2;
+  border-radius: 7px;
+  padding: 5px 7px;
+  font: inherit;
+  font-size: 0.64rem;
+  outline: none;
+}
+.ss-ai-lock-row input:focus {
+  border-color: rgba(140, 230, 170, 0.45);
+}
+.ss-ai-lock-row button,
+.ss-ai-relock {
+  border: 1px solid rgba(140, 230, 170, 0.22);
+  background: rgba(94, 207, 122, 0.07);
+  color: #b9e8c8;
+  border-radius: 7px;
+  padding: 5px 10px;
+  font: inherit;
+  font-size: 0.62rem;
+  cursor: pointer;
+}
+.ss-ai-lock-row button:hover,
+.ss-ai-relock:hover {
+  background: rgba(94, 207, 122, 0.15);
+  color: #eafff0;
+}
+.ss-ai-lock-row button:disabled { opacity: 0.45; cursor: wait; }
+.ss-ai-relock {
+  width: 100%;
+  margin-top: 8px;
+}
+
 /* AI Dock：流式回答与工具轨迹 */
 .ai-dock-status b {
   font-weight: 400;

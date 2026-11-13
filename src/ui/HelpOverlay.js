@@ -116,12 +116,3 @@ export function openAbout() {
   });
 }
 
-export function maybeShowTour() {
-  let seen = false;
-  try {
-    seen = localStorage.getItem(TOUR_KEY) === "1";
-  } catch (_) {}
-  if (!seen) {
-    setTimeout(() => openTour(), 1200);
-  }
-}

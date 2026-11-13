@@ -570,6 +570,15 @@ export function mountTreeScene(rootEl) {
       <label class="ss-tog"><input type="checkbox" id="ssAuto" checked/> 自动旋转</label>
       <div class="ss-sep"></div>
       <div class="ss-title ss-ai-title">AI / API</div>
+      <div class="ss-ai-lock" id="ssAiLock">
+        <p class="ss-ai-lock-hint">AI 模型、视觉和向量配置已锁定。输入管理密码后查看和修改。</p>
+        <div class="ss-ai-lock-row">
+          <input id="ssAiLockPass" type="password" autocomplete="off" spellcheck="false" placeholder="管理密码"/>
+          <button type="button" id="ssAiLockBtn">解锁</button>
+        </div>
+        <p class="ss-ai-status" id="ssAiLockStatus"></p>
+      </div>
+      <div class="ss-ai-config" id="ssAiConfig" hidden>
       <div class="ss-ai">
         <label>服务商
           <select id="ssAiProvider">
@@ -638,6 +647,8 @@ export function mountTreeScene(rootEl) {
           <button type="button" id="ssEmbedClear">清除向量 Key</button>
         </div>
         <p class="ss-ai-status" id="ssEmbedStatus">智谱填 Base URL .../v4 + 模型 embedding-3；不要填 GLM-4.5-Flash 等对话模型。留空时 GLM 使用 embedding-3，其它服务商退回本地向量</p>
+      </div>
+      <button type="button" class="ss-ai-relock" id="ssAiRelock">锁定 AI 配置</button>
       </div>
       <button type="button" class="ss-close" id="ssClose">关闭</button>
     </div>
@@ -5139,12 +5150,37 @@ export function mountTreeScene(rootEl) {
   // ── 右上角设置面板 ──
   const setBtn = rootEl.querySelector("#ecoSetBtn");
   const setPanel = rootEl.querySelector("#ecoSetPanel");
-  setBtn.addEventListener("click", () => {
+  function closeSettingsPanel() {
+    setPanel.hidden = true;
+  }
+  setBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
     setPanel.hidden = !setPanel.hidden;
   });
-  rootEl.querySelector("#ssClose").addEventListener("click", () => {
-    setPanel.hidden = true;
+  rootEl.querySelector("#ssClose").addEventListener("click", closeSettingsPanel);
+  // 点击空白处、滚轮缩放、Esc 或打开 AI 坞时自动收起设置
+  document.addEventListener(
+    "pointerdown",
+    (e) => {
+      if (setPanel.hidden) return;
+      if (setPanel.contains(e.target) || setBtn.contains(e.target)) return;
+      closeSettingsPanel();
+    },
+    true
+  );
+  document.addEventListener(
+    "wheel",
+    (e) => {
+      if (!setPanel.hidden && !setPanel.contains(e.target)) {
+        closeSettingsPanel();
+      }
+    },
+    { passive: true, capture: true }
+  );
+  document.addEventListener("keydown", (e) => {
+    if (!setPanel.hidden && e.key === "Escape") closeSettingsPanel();
   });
+  window.addEventListener("eco:ai-open", closeSettingsPanel);
   function bindRange(id, key, fmt) {
     const inp = rootEl.querySelector("#" + id);
     const em = rootEl.querySelector("#" + id + "v");
@@ -5816,6 +5852,7 @@ export function mountTreeScene(rootEl) {
 
   /** 苯环小助手自己的界面导览：滑动、字幕、指向、拖动世界树 */
   function startCompanionTour() {
+    window.__wtAutoTourPending = false;
     const rail = document.querySelector(".explore-rail");
     const detail = document.querySelector(".detail");
     const railRect = rail ? rail.getBoundingClientRect() : null;
@@ -5883,14 +5920,63 @@ export function mountTreeScene(rootEl) {
           expression: "happy",
           text: "逛完啦，随时可以再叫我。",
         },
+        {
+          px: Math.max(left + 170, W * 0.24),
+          py: H0 * 0.52,
+          duration: 6,
+          gesture: "point",
+          expression: "excited",
+          openAi: true,
+          text: "最后重点看这里：我帮你打开 AI 研究台。查 LOTUS、读论文、识图、分析表格，都在这里完成。",
+        },
       ],
       {
         onStep: (i, step) => {
           if (step.drag) startGuideDrag();
+          if (step.openAi) {
+            window.__wtAutoTourPending = false;
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent("eco:ai-open"));
+            }, 900);
+          }
         },
       }
     );
   }
+
+  // 首次进入：世界树入场完成后，让小助手自动介绍界面，最后打开 AI 研究台。
+  // 只自动播一次；之后的引导仍可从「帮助 / 带我逛逛」手动打开。
+  let autoTourSeen = false;
+  try {
+    autoTourSeen =
+      localStorage.getItem("eco-companion-tour-auto-v1") === "1";
+  } catch (_) {}
+  let autoTourTimer = 0;
+  function maybeAutoCompanionTour() {
+    autoTourTimer = 0;
+    window.__wtAutoTourPending = false;
+    if (autoTourSeen) return;
+    if (document.body.classList.contains("ui-intro")) return;
+    if (document.visibilityState !== "visible") return;
+    if (getState().selectedId) return;
+    autoTourSeen = true;
+    try {
+      localStorage.setItem("eco-companion-tour-auto-v1", "1");
+    } catch (_) {}
+    startCompanionTour();
+  }
+  window.addEventListener("eco:intro-done", () => {
+    if (autoTourSeen) return;
+    window.__wtAutoTourPending = true;
+    clearTimeout(autoTourTimer);
+    autoTourTimer = setTimeout(maybeAutoCompanionTour, 2800);
+  });
+  setTimeout(() => {
+    if (autoTourSeen) return;
+    if (document.body.classList.contains("ui-intro")) return;
+    window.__wtAutoTourPending = true;
+    maybeAutoCompanionTour();
+  }, 15000);
 
   /** 当前选中的分子星点（供导览/AI 共用） */
   function selectedPoint() {

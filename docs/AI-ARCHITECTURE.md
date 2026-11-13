@@ -174,6 +174,7 @@ flowchart LR
 
 - API Key 只存在服务端 `.env` / `.run/ai-config.json`，`GET /api/ai/config` 只返回 `hasKey`，不返回 Key。
 - 公网演示可设 `AI_CONFIG_LOCK=1` 锁定配置写操作；设置 `AI_ADMIN_TOKEN` 后，写配置必须带管理令牌。
+- 设置面板的 AI / API 区域默认锁定，密码由 `POST /api/ai/settings/unlock` 服务端比对（`AI_SETTINGS_PASSWORD`，未设置时用 `AI_ADMIN_TOKEN`，再退回 `worldtree`）；关闭面板自动重新锁定。
 - `/api/ai/chat` 按 IP 限流并限制单 IP 并发；站点代理用 `x-real-ip` 传递真实来源。
 - 静态服务器把 `ai/`、`.git`、`.run`、`logs`、`claims.jsonl` 等路径设为不可下载。
 - 系统提示词禁止用药建议、剂量、治疗承诺；数字必须来自工具。

@@ -62,6 +62,12 @@ export function mountAiSettings(panel) {
   const embedStatusEl = panel.querySelector("#ssEmbedStatus");
   const embedTestEl = panel.querySelector("#ssEmbedTest");
   const embedClearEl = panel.querySelector("#ssEmbedClear");
+  const lockEl = panel.querySelector("#ssAiLock");
+  const lockPassEl = panel.querySelector("#ssAiLockPass");
+  const lockBtn = panel.querySelector("#ssAiLockBtn");
+  const lockStatusEl = panel.querySelector("#ssAiLockStatus");
+  const aiConfigEl = panel.querySelector("#ssAiConfig");
+  const relockBtn = panel.querySelector("#ssAiRelock");
   if (!providerEl || !baseEl || !modelEl || !keyEl || !statusEl) return null;
 
   let presets = DEFAULTS;
@@ -69,6 +75,8 @@ export function mountAiSettings(panel) {
   let hasKey = false;
   let hasVisionKey = false;
   let hasEmbedKey = false;
+  // 只在本次解锁期间保存在内存；关闭设置面板即清空
+  let unlockPassword = "";
 
   function status(text, kind = "") {
     statusEl.textContent = text;
@@ -85,6 +93,60 @@ export function mountAiSettings(panel) {
     if (!embedStatusEl) return;
     embedStatusEl.textContent = text;
     embedStatusEl.className = `ss-ai-status${kind ? ` ${kind}` : ""}`;
+  }
+
+  function lockStatus(text, kind = "") {
+    if (!lockStatusEl) return;
+    lockStatusEl.textContent = text;
+    lockStatusEl.className = `ss-ai-status${kind ? ` ${kind}` : ""}`;
+  }
+
+  /** 解锁后本次会话内复用为配置写令牌；关闭面板即清空 */
+  function adminHeaders() {
+    const token = unlockPassword || storedAdminToken();
+    return token ? { "x-ai-admin-token": token } : {};
+  }
+
+  function setAiLocked(locked) {
+    if (!lockEl || !aiConfigEl) return;
+    lockEl.hidden = !locked;
+    aiConfigEl.hidden = locked;
+    if (locked) {
+      unlockPassword = "";
+      if (lockPassEl) lockPassEl.value = "";
+      lockStatus("", "");
+    } else {
+      loadConfig();
+    }
+  }
+
+  async function unlockAiSettings() {
+    const password = String(lockPassEl?.value || "").trim();
+    if (!password) {
+      lockStatus("请输入管理密码", "err");
+      lockPassEl?.focus();
+      return;
+    }
+    if (lockBtn) lockBtn.disabled = true;
+    lockStatus("正在验证…", "");
+    try {
+      const res = await fetch("/api/ai/settings/unlock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      unlockPassword = password;
+      setAiLocked(false);
+      lockStatus("", "");
+    } catch (err) {
+      lockStatus(`解锁失败：${String(err.message || err).slice(0, 120)}`, "err");
+    } finally {
+      if (lockBtn) lockBtn.disabled = false;
+    }
   }
 
   function embedPresetKey() {
@@ -219,9 +281,7 @@ export function mountAiSettings(panel) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(storedAdminToken()
-          ? { "x-ai-admin-token": storedAdminToken() }
-          : {}),
+        ...adminHeaders(),
         ...extraHeaders,
       },
       body: JSON.stringify({
@@ -356,7 +416,7 @@ export function mountAiSettings(panel) {
     try {
       const res = await fetch("/api/ai/config", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...adminHeaders() },
         body: JSON.stringify({ clearVisionKey: true }),
       });
       const data = await res.json().catch(() => ({}));
@@ -408,7 +468,7 @@ export function mountAiSettings(panel) {
     try {
       const res = await fetch("/api/ai/config", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...adminHeaders() },
         body: JSON.stringify({ clearEmbedKey: true }),
       });
       const data = await res.json().catch(() => ({}));
@@ -432,7 +492,23 @@ export function mountAiSettings(panel) {
   visionClearEl?.addEventListener("click", clearVisionKey);
   embedTestEl?.addEventListener("click", testEmbed);
   embedClearEl?.addEventListener("click", clearEmbedKey);
-  loadConfig();
+
+  lockBtn?.addEventListener("click", unlockAiSettings);
+  lockPassEl?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      unlockAiSettings();
+    }
+  });
+  relockBtn?.addEventListener("click", () => setAiLocked(true));
+
+  // 关闭设置面板时自动重新锁定 AI 配置
+  if (lockEl && aiConfigEl) {
+    new MutationObserver(() => {
+      if (panel.hidden) setAiLocked(true);
+    }).observe(panel, { attributes: true, attributeFilter: ["hidden"] });
+  }
+  setAiLocked(true);
 
   return { reload: loadConfig };
 }

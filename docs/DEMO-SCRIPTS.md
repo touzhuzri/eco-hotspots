@@ -9,6 +9,8 @@
 - 知识库面板显示已向量化（`BAAI/bge-m3`，1024 维）
 - 浏览器缩放 100%，关闭无关标签页
 - 如需识图，准备 `demo/quercetin.png` 或一张植物/结构式照片
+- 首次打开会由小助手自动导览，最后打开 AI 研究台；想重看可在控制台执行 `localStorage.removeItem("eco-companion-tour-auto-v1")` 后刷新
+- 设置里的 AI / API 默认锁定；演示配置前输入管理密码（未设置时为 `worldtree`）
 
 ---
 
