@@ -51,6 +51,7 @@
 - [`docs/DEMO-SCRIPTS.md`](docs/DEMO-SCRIPTS.md)：2–3 分钟演示脚本
 - [`docs/rag-eval.md`](docs/rag-eval.md)：30 题检索评测与 Cite@4
 - [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md)：运行指标与测量方法
+- [`docs/PUBLISH.md`](docs/PUBLISH.md)：公开发布前的检查清单
 
 ---
 
