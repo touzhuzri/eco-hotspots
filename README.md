@@ -39,11 +39,13 @@
 能力一览：
 
 - **数据分析**：LOTUS 227,319 条记录的真实查询、聚合、图表与 3D 定位，数字不靠模型记忆。
+- **表格分析**：上传 CSV / Excel，`analyze_table` 做分组计数、求和、平均、最小/最大，并自动生成柱状图；统计不经过模型手算。
 - **RAG 溯源**：系统知识库（LOTUS 卡片 / 论文 / 权威网站）+ 用户上传 PDF/Word/Excel/PPT/CSV，回答标注《文件名》第 N 段或 DOI/URL。
-- **研究任务**：计划 → 工具执行 → 反思 → 结论，可导出 Markdown 研究简报，可「继续上次」。
+- **研究任务**：计划 → 工具执行 → 反思 → 结论，可导出 Markdown 研究简报，可「继续上次」；最近研究同时保存在浏览器和服务端匿名会话，换设备也能恢复。
 - **多模态**：图片先结构化（主体 / 科属候选 / 分子候选 / 置信度 / 不确定项），再自动查 LOTUS、找相似、画分布图。
 - **外部文献**：OpenAlex / Crossref / Europe PMC / Nature 直接检索；知网、万方、Web of Science 提供官方检索入口，不抓取受限全文。
 - **可停止**：点「■」会同时中止浏览器请求和服务端模型/工具调用。
+- **公网防护**：可锁定配置写操作、设置管理令牌、按 IP 限流并限制并发，保护演示 Key 和额度。
 
 架构与演示材料：
 
@@ -108,11 +110,11 @@
 3. 打开页面底部 AI 分析坞，或右上角 ⚙ 配置服务商 / Base URL / 模型 / Key；同一面板的「多模态 / 视觉模型」可单独配置识图模型，并点「测试识图」验证
 4. 知识库分两层：内置的 **LOTUS 数据集卡片 + 开发参考论文 + 权威网站**（`data/kb-seed/`，不可删除），以及你上传的 PDF / Word / CSV；回答会自动检索并标注《文件名》第 N 段、论文 DOI 或网站 URL
 5. 识图：在 AI 坞点「识图」上传结构式、图表或照片。视觉模型只输出结构化 JSON（主体、科属候选、分子候选、结构特征、置信度、不确定项），服务端再自动查 LOTUS、找相似分子、画分类分布并定位场景；低置信度候选不会自动查库。可在右上角 ⚙ →「多模态 / 视觉模型」里单独配置并测试
-6. 研究任务：点输入框旁「研究」，AI 先给出 2–4 步计划，再逐步调用工具；结束后由服务端生成研究反思（失败、空结果、缺来源、图片不确定），并导出包含计划、结论、反思、工具记录、图表数据和来源的 Markdown 简报。最近一次研究会保存在本机浏览器，可用「继续上次」恢复
+6. 研究任务：点输入框旁「研究」，AI 先给出 2–4 步计划，再逐步调用工具；结束后由服务端生成研究反思（失败、空结果、缺来源、图片不确定），并导出包含计划、结论、反思、工具记录、图表数据和来源的 Markdown 简报。最近一次研究同时保存在本机浏览器和服务端匿名会话（`.run/ai-sessions.json`），换设备也能用「继续上次」恢复
 7. 向量模型可与对话模型分开配置：可用 SiliconFlow `https://api.siliconflow.cn/v1` + `BAAI/bge-m3`（免费档，需实名认证），或智谱 `https://open.bigmodel.cn/api/paas/v4` + `embedding-3`（需单独开通 Embedding 资源包）；切换后点知识库面板「重建向量」，再用 `node scripts/rag-eval.mjs` 跑检索评测
 8. 运行指标：`GET /api/ai/metrics` 返回对话数、模型调用耗时、工具成功率、视觉与文献检索次数，不含问题正文和 Key，可直接作为参赛材料的量化证据
 
-AI 代理没有 npm 依赖；相似分子索引已生成在 `data/similarity/`，可用 `pipeline/build-molecule-similarity.py` 重建。内置知识库种子在 `data/kb-seed/`（随仓库提交），运行时正文和向量存在本机 `data/kb/`，已在 `.gitignore` 中忽略。详见 [`ai/README.md`](ai/README.md)、[`docs/AI-ARCHITECTURE.md`](docs/AI-ARCHITECTURE.md) 和 [`data/kb-seed/README.md`](data/kb-seed/README.md)。
+AI 代理没有 npm 依赖；相似分子索引已生成在 `data/similarity/`，可用 `pipeline/build-molecule-similarity.py` 重建。内置知识库种子在 `data/kb-seed/`（随仓库提交），运行时正文和向量存在本机 `data/kb/`，已在 `.gitignore` 中忽略。表格统计的演示文件是 `demo/table-demo.csv`；单元测试用 `npm test`（Node 内置 test runner）。详见 [`ai/README.md`](ai/README.md)、[`docs/AI-ARCHITECTURE.md`](docs/AI-ARCHITECTURE.md) 和 [`data/kb-seed/README.md`](data/kb-seed/README.md)。
 
 ### 方式 B：只预览前端
 
@@ -137,6 +139,8 @@ node deploy/claim-server.mjs
 ## 服务器 / 面板部署
 
 完整的部署、备份、回滚、零环境应急与排障手册见 [`docs/DEPLOYMENT_HANDOVER.md`](docs/DEPLOYMENT_HANDOVER.md)。
+
+公网评审演示建议在 `ai/.env` 打开防护（默认值见 `ai/.env.example`）：`AI_CONFIG_LOCK=1` 锁定前端配置写操作，`AI_ADMIN_TOKEN` 设置管理令牌，`AI_RATE_LIMIT_CHAT` / `AI_MAX_CONCURRENT_CHATS` 限制刷额度；站点代理会把真实来源 IP 以 `x-real-ip` 传给 AI 服务用于限流。
 
 如果拿到的是校园离线一体包，先看包内 `README-FIRST.md`，解压后执行 `./install-offline.sh`。
 

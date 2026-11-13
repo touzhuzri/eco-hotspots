@@ -140,9 +140,41 @@ flowchart TB
 - Nature 通过 ISSN `0028-0836` 在 OpenAlex/Crossref 中过滤，并附官网检索入口。
 - 模型可调用 `list_research_sources` 先查看可用外部源，再选择 `search_papers` 的 `source`。
 
-## 6. 安全边界
+## 6. 表格分析
+
+```mermaid
+flowchart LR
+  U[上传 CSV / Excel] --> P[ai/files.mjs<br/>解析为文本]
+  P --> T[ai/tables.mjs<br/>列名 / 行数 / 前 3 行]
+  T --> M[模型上下文]
+  M --> AT[analyze_table<br/>分组计数 / 求和 / 平均]
+  AT --> G[groups]
+  G --> C[自动柱状图]
+  AT --> A[最终回答]
+```
+
+- 统计由服务端确定性计算，模型不手算数字。
+- Excel 只读第一个工作表；限制 50,000 行 × 60 列。
+- 返回 `groups` 时服务端直接发 `chart` 事件，避免模型重复调用 `render_chart`。
+
+## 7. 会话与恢复
+
+```mermaid
+flowchart LR
+  B[浏览器<br/>localStorage] -->|x-ai-session| S[AI 服务<br/>.run/ai-sessions.json]
+  S -->|GET /api/ai/session/last| B
+  B -->|研究完成 POST| S
+```
+
+- 会话 ID 是浏览器生成的匿名随机串，不含账号或个人信息。
+- 服务端保留最近 300 个会话、30 天过期；换设备或清缓存后仍能“继续上次”。
+- 研究简报、来源和反思都随会话保存，图片不存服务端。
+
+## 8. 安全边界
 
 - API Key 只存在服务端 `.env` / `.run/ai-config.json`，`GET /api/ai/config` 只返回 `hasKey`，不返回 Key。
+- 公网演示可设 `AI_CONFIG_LOCK=1` 锁定配置写操作；设置 `AI_ADMIN_TOKEN` 后，写配置必须带管理令牌。
+- `/api/ai/chat` 按 IP 限流并限制单 IP 并发；站点代理用 `x-real-ip` 传递真实来源。
 - 静态服务器把 `ai/`、`.git`、`.run`、`logs`、`claims.jsonl` 等路径设为不可下载。
 - 系统提示词禁止用药建议、剂量、治疗承诺；数字必须来自工具。
 - 图片中的文字只作为图片内容，不作为指令执行。

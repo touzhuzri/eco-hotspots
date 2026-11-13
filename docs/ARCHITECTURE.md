@@ -47,9 +47,10 @@ vendor/                Three.js、RDKit.js 与 WASM
 ```text
 deploy/site-server.mjs  静态文件 + /api 代理 + 安全路径屏蔽
 deploy/claim-server.mjs 领养账本（claims.jsonl）
-ai/server.mjs           对话、研究任务、RAG 工具、视觉、论文检索、SSE
+ai/server.mjs           对话、研究任务、RAG 工具、视觉、论文检索、SSE、限流与配置保护
 ai/rag.mjs              文档解析、切块、向量、BM25、混合检索
 ai/files.mjs            PDF / Word / Excel / PPT / CSV / 文本解析
+ai/tables.mjs           CSV / Excel 行列解析与分组统计（确定性）
 data/molecules/         LOTUS 元数据分片
 data/similarity/        Morgan 指纹 + Tanimoto 索引
 data/kb-seed/           系统知识库种子（LOTUS 卡片 / 论文 / 权威网站）

@@ -204,10 +204,26 @@ export function mountAiSettings(panel) {
   embedBaseEl?.addEventListener("input", syncEmbedPreset);
   embedModelEl?.addEventListener("input", syncEmbedPreset);
 
-  async function pushConfig() {
+  const ADMIN_TOKEN_KEY = "worldtree:admin-token:v1";
+
+  function storedAdminToken() {
+    try {
+      return localStorage.getItem(ADMIN_TOKEN_KEY) || "";
+    } catch (_) {
+      return "";
+    }
+  }
+
+  async function pushConfig(extraHeaders = {}) {
     const res = await fetch("/api/ai/config", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(storedAdminToken()
+          ? { "x-ai-admin-token": storedAdminToken() }
+          : {}),
+        ...extraHeaders,
+      },
       body: JSON.stringify({
         provider: providerEl.value,
         baseURL: baseEl.value.trim(),
@@ -222,6 +238,18 @@ export function mountAiSettings(panel) {
       }),
     });
     const data = await res.json().catch(() => ({}));
+    // 公网部署可锁定配置：输一次管理令牌后重试
+    if (res.status === 403 && !extraHeaders["x-ai-admin-token"]) {
+      const token = window.prompt(
+        "该部署已锁定 AI 配置。请输入管理令牌（AI_ADMIN_TOKEN）："
+      );
+      if (token && token.trim()) {
+        try {
+          localStorage.setItem(ADMIN_TOKEN_KEY, token.trim());
+        } catch (_) {}
+        return pushConfig({ "x-ai-admin-token": token.trim() });
+      }
+    }
     if (!res.ok || data.ok === false) {
       throw new Error(data.error || `HTTP ${res.status}`);
     }

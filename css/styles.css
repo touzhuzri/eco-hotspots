@@ -4659,6 +4659,74 @@ body.ui-intro .ai-dock { display: none; }
 .ai-action-card.is-done { border-color: rgba(140, 230, 170, 0.45); }
 .ai-action-card.is-dismissed { opacity: 0.55; }
 
+/* AI Dock：首屏研究台 */
+.ai-hero {
+  margin: 4px 0 14px;
+  padding: 14px;
+  border: 1px solid rgba(140, 230, 170, 0.2);
+  border-radius: 14px;
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgba(94, 207, 122, 0.13), rgba(255, 255, 255, 0.015));
+}
+.ai-hero-kicker {
+  color: #8fe0aa;
+  font-size: 0.58rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.ai-hero h2 {
+  margin: 5px 0 4px;
+  color: #eaf8ee;
+  font-size: 1.02rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.ai-hero > p {
+  margin: 0;
+  color: #8fa99a;
+  font-size: 0.64rem;
+  line-height: 1.6;
+}
+.ai-hero-tasks {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+.ai-hero-tasks button {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 9px 10px;
+  border: 1px solid rgba(140, 160, 190, 0.18);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+}
+.ai-hero-tasks button:hover {
+  border-color: rgba(140, 230, 170, 0.45);
+  background: rgba(94, 207, 122, 0.1);
+  transform: translateY(-1px);
+}
+.ai-hero-tasks b {
+  color: #e6f6ec;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+.ai-hero-tasks span {
+  color: #7f9a8b;
+  font-size: 0.56rem;
+  line-height: 1.4;
+}
+@media (max-width: 760px) {
+  .ai-hero-tasks { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ai-hero h2 { font-size: 0.94rem; }
+}
+
 /* AI Dock：展开后的第一条自我介绍 */
 .ai-intro .ai-intro-hint {
   margin: 9px 0 5px;

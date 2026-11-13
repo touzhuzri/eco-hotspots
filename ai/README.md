@@ -230,7 +230,7 @@ POST /api/ai/vision-test
    - 工具失败、空结果、缺少 LOTUS 工具、缺少论文/网站/知识库来源、图片存在不确定项；
    - 输出「局限 + 下一步」，前端出现「按建议继续」按钮；
 4. 前端出现「导出研究简报」，可下载包含问题、计划、结论、研究反思、工具记录、图表数据、图像结构化和来源（DOI/URL/《文件名》第 N 段）的 Markdown；
-5. 最近一次研究保存到浏览器 `localStorage`，标题栏「继续上次」可恢复问题、计划、结论、来源和反思；
+5. 最近一次研究保存到浏览器 `localStorage`，同时通过匿名会话 ID 保存到服务端 `.run/ai-sessions.json`；标题栏「继续上次」可恢复问题、计划、结论、来源和反思，换设备或清缓存后仍可用；
 6. 回答过程中可以点「■」停止：前端 abort 请求，服务端通过 `res.on("close")` 中止上游模型调用和后续工具轮次。
 
 规划器失败时自动使用本地兜底计划，不影响正常回答。`mode` 不传或传 `chat` 时保持原来的单轮/多轮工具对话。
@@ -282,10 +282,40 @@ AI_EVAL_CHAT=1 AI_EVAL_CHAT_LIMIT=8 node scripts/citation-eval.mjs
 - 作为参赛材料的量化证据，配合 [`docs/PERFORMANCE.md`](../docs/PERFORMANCE.md) 的测量方法；
 - `scripts/metrics.mjs` 可直接打印一份快照。
 
+## 5.6 表格分析（CSV / Excel）
+
+上传 CSV / TSV，或 Excel（读取第一个工作表，转成制表符文本）后，服务端会用 `ai/tables.mjs` 解析成行列，并把表结构（列名、行数、前 3 行）注入模型上下文：
+
+```text
+【本轮上传的结构化表格】
+- 《demo.csv》：120 行 × 5 列
+  列名：名称、科、分子量、年份、活性
+```
+
+模型需要计数或分组时必须调用 `analyze_table`，由服务端做确定性计算：
+
+```json
+{
+  "file": "demo.csv",
+  "group_by": "科",
+  "metric": "count",
+  "value_column": "",
+  "filter_column": "年份",
+  "filter_contains": "2024",
+  "limit": 15
+}
+```
+
+- `metric`：`count` / `sum` / `avg` / `min` / `max`；后四者需要 `value_column`。
+- 返回 `groups: [{label, value, n}]`，服务端自动通过 SSE `chart` 画柱状图，模型不再重复调用 `render_chart`。
+- 限制：最多 50,000 行 × 60 列；Excel 只读第一个工作表，公式单元格使用缓存值；合并单元格可能落在首列。
+- 行数、求和、平均都由工具计算，不使用模型口算，便于核对。
+
 ## 6. 接口与工具
 
 - `/api/ai/health`：服务状态、是否配置 Key、相似索引是否加载
-- `/api/ai/metrics`：对话 / 模型 / 工具 / 视觉 / 文献检索的运行指标
+- `/api/ai/metrics`：对话 / 模型 / 工具 / 视觉 / 文献检索的运行指标与限流配置
+- `/api/ai/session/last` GET/POST：按 `x-ai-session` 取回/保存最近一次研究（匿名 ID，30 天过期）
 - `/api/ai/config` GET/POST：读取/保存 provider、Base URL、模型、Key（Key 不回传）
 - `/api/ai/test`：用当前配置发一条最小请求
 - `/api/ai/chat`：SSE 流式对话 + 工具调用 + 附件正文
@@ -310,8 +340,36 @@ AI_EVAL_CHAT=1 AI_EVAL_CHAT_LIMIT=8 node scripts/citation-eval.mjs
 - `web_search`：公开网页联网搜索（每轮最多 3 次）
 - `search_papers`：学术文献检索（每轮最多 3 次）。OpenAlex/Crossref/Europe PMC 走公开 API；Nature 用 ISSN 过滤；知网/万方/WoS 没有公开检索 API，只返回官网入口和 OpenAlex 公开替代结果，不抓取需要登录的受限全文。
 - `search_knowledge`：检索用户上传的知识库段落（每轮最多 3 次）
+- `analyze_table`：对 CSV / Excel 做分组计数、求和、平均、最小/最大，返回 groups 并自动画图
 
 无 Key 时 `/api/ai/chat` 会返回**本地演示回答**（真实查询 LOTUS + 图表），方便先联调界面。
+
+## 6.1 公网防护
+
+公开演示时建议在 `ai/.env` 开启：
+
+```env
+# 锁定前端「保存配置」；仍可通过 .env 修改
+AI_CONFIG_LOCK=1
+# 管理令牌：设置后，前端保存配置必须带 x-ai-admin-token
+AI_ADMIN_TOKEN=换成一段随机长字符串
+
+# 每个 IP 每分钟的请求上限
+AI_RATE_LIMIT_CHAT=12
+AI_RATE_LIMIT_WRITE=30
+AI_RATE_LIMIT_READ=240
+
+# 并发上限：整个服务 / 单个 IP
+AI_MAX_CONCURRENT_CHATS=4
+AI_MAX_CONCURRENT_PER_IP=2
+```
+
+行为：
+
+- `POST /api/ai/config` 在锁定或设置了管理令牌但没有正确令牌时返回 403；设置面板会提示输入管理令牌，令牌只存在浏览器 localStorage，不发往第三方。
+- `/api/ai/chat` 超过每 IP 每分钟上限返回 429；同一 IP 的并行聊天超过上限也返回 429，避免一个人占满额度。
+- 站点代理会把真实来源 IP 写入 `x-real-ip`，AI 服务优先用它做限流；直连时退回 socket 地址。
+- 限流与并发是内存态，重启清零；指标接口的 `limits` 字段会返回当前配置。
 
 ## 7. 下一步
 

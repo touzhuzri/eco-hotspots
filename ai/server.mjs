@@ -19,6 +19,7 @@
  */
 
 import { createServer } from "node:http";
+import { timingSafeEqual } from "node:crypto";
 import {
   appendFileSync,
   existsSync,
@@ -31,6 +32,11 @@ import { gunzipSync } from "node:zlib";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { attachmentTextForModel, parseFileBuffer } from "./files.mjs";
+import {
+  analyzeTable,
+  tableContextText,
+  tablesFromAttachments,
+} from "./tables.mjs";
 import {
   addDocument,
   configureRag,
@@ -51,7 +57,11 @@ import {
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
-const CONFIG_FILE = join(ROOT, ".run", "ai-config.json");
+const CONFIG_FILE =
+  process.env.AI_CONFIG_FILE || join(ROOT, ".run", "ai-config.json");
+// 最近研究的服务端副本（按匿名 session 保存；不存问题图片）
+const SESSION_FILE =
+  process.env.AI_SESSION_FILE || join(ROOT, ".run", "ai-sessions.json");
 const DATA_DIR = join(ROOT, "data", "molecules");
 const SIM_DIR = join(ROOT, "data", "similarity");
 
@@ -146,7 +156,86 @@ function metricsSnapshot() {
     },
     vision: { calls: metrics.visionCalls, errors: metrics.visionErrors },
     papers: { searches: metrics.paperSearches },
+    limits: {
+      configLocked: CONFIG_LOCK || !!ADMIN_TOKEN,
+      adminTokenSet: !!ADMIN_TOKEN,
+      rateChatPerMin: RATE_CHAT,
+      rateWritePerMin: RATE_WRITE,
+      rateReadPerMin: RATE_READ,
+      maxConcurrentChats: MAX_CONCURRENT_CHATS,
+      maxConcurrentPerIp: MAX_CONCURRENT_PER_IP,
+      sessions: sessionStats(),
+    },
   };
+}
+
+// ── 公网防护 ────────────────────────────────────────────────
+// 评审期公开演示时：配置写操作可锁定；聊天按 IP 限流并限制并发。
+const CONFIG_LOCK = /^(1|true|yes)$/i.test(process.env.AI_CONFIG_LOCK || "");
+const ADMIN_TOKEN = String(process.env.AI_ADMIN_TOKEN || "").trim();
+const RATE_CHAT = Math.max(1, Number(process.env.AI_RATE_LIMIT_CHAT || 12));
+const RATE_WRITE = Math.max(1, Number(process.env.AI_RATE_LIMIT_WRITE || 30));
+const RATE_READ = Math.max(1, Number(process.env.AI_RATE_LIMIT_READ || 240));
+const MAX_CONCURRENT_CHATS = Math.max(
+  1,
+  Number(process.env.AI_MAX_CONCURRENT_CHATS || 4)
+);
+const MAX_CONCURRENT_PER_IP = Math.max(
+  1,
+  Number(process.env.AI_MAX_CONCURRENT_PER_IP || 2)
+);
+
+const rateBuckets = new Map();
+const ipInflight = new Map();
+
+/** 站点代理会写入 x-real-ip；直连时退回 socket 地址 */
+function clientIp(req) {
+  const real = String(req.headers["x-real-ip"] || "").trim();
+  if (real) return real;
+  const xff = String(req.headers["x-forwarded-for"] || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return xff.length ? xff[xff.length - 1] : req.socket?.remoteAddress || "unknown";
+}
+
+/** 返回需要等待的秒数；0 表示放行 */
+function rateLimit(req, kind, maxPerMin) {
+  const key = `${kind}:${clientIp(req)}`;
+  const now = Date.now();
+  let bucket = rateBuckets.get(key);
+  if (!bucket || now >= bucket.resetAt) {
+    bucket = { count: 0, resetAt: now + 60000 };
+    rateBuckets.set(key, bucket);
+  }
+  bucket.count++;
+  if (rateBuckets.size > 5000) {
+    for (const [k, v] of rateBuckets) {
+      if (now >= v.resetAt) rateBuckets.delete(k);
+    }
+  }
+  return bucket.count > maxPerMin
+    ? Math.max(1, Math.ceil((bucket.resetAt - now) / 1000))
+    : 0;
+}
+
+function safeEqual(a, b) {
+  const x = Buffer.from(String(a || ""));
+  const y = Buffer.from(String(b || ""));
+  return x.length === y.length && timingSafeEqual(x, y);
+}
+
+/** 配置写权限：设置了 AI_ADMIN_TOKEN 时必须带令牌；否则由 AI_CONFIG_LOCK 决定 */
+function configWriteAllowed(req) {
+  if (ADMIN_TOKEN) {
+    const token =
+      String(req.headers["x-ai-admin-token"] || "").trim() ||
+      String(req.headers.authorization || "")
+        .replace(/^Bearer\s+/i, "")
+        .trim();
+    return safeEqual(token, ADMIN_TOKEN);
+  }
+  return !CONFIG_LOCK;
 }
 
 // 同时写到 logs/ai.log，方便排查“轮次/工具/错误”
@@ -668,6 +757,66 @@ function saveConfig(patch) {
   return publicConfig();
 }
 
+// ── 最近研究：服务端按匿名会话保存 ─────────────────────────
+// 浏览器 localStorage 只做缓存；换设备/清缓存后仍可取回最近一次研究。
+const SESSION_TTL_MS = 30 * 24 * 3600 * 1000;
+const SESSION_MAX = 300;
+let SESSIONS = null;
+
+function loadSessions() {
+  if (SESSIONS) return SESSIONS;
+  const data = readJson(SESSION_FILE);
+  SESSIONS = data && typeof data === "object" && !Array.isArray(data) ? data : {};
+  return SESSIONS;
+}
+
+function pruneSessions() {
+  const now = Date.now();
+  const kept = Object.entries(SESSIONS || {})
+    .filter(([, v]) => v && now - Number(v.savedAt || 0) < SESSION_TTL_MS)
+    .sort((a, b) => Number(b[1].savedAt || 0) - Number(a[1].savedAt || 0))
+    .slice(0, SESSION_MAX);
+  SESSIONS = Object.fromEntries(kept);
+}
+
+function persistSessions() {
+  pruneSessions();
+  try {
+    mkdirSync(dirname(SESSION_FILE), { recursive: true });
+    writeFileSync(SESSION_FILE, JSON.stringify(SESSIONS), { mode: 0o600 });
+  } catch (err) {
+    console.error("[ai] save session failed:", err.message);
+  }
+}
+
+function sessionStats() {
+  const map = loadSessions();
+  return { count: Object.keys(map).length, ttlDays: SESSION_TTL_MS / 86400000 };
+}
+
+function sessionIdFrom(req) {
+  const raw = String(req.headers["x-ai-session"] || "").trim();
+  return /^[A-Za-z0-9_-]{16,64}$/.test(raw) ? raw : "";
+}
+
+/** 只接受普通 JSON，限制体积，并要求有最小可用的研究计划 */
+function sanitizeSession(body) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return null;
+  const plan = body.plan;
+  if (
+    !plan ||
+    typeof plan.goal !== "string" ||
+    !plan.goal.trim() ||
+    !Array.isArray(plan.steps) ||
+    !plan.steps.length
+  ) {
+    return null;
+  }
+  const text = JSON.stringify(body);
+  if (text.length > 128 * 1024) return null;
+  return JSON.parse(text);
+}
+
 // ── LOTUS 查询索引（懒加载） ────────────────────────────────
 let MOLECULES = null;
 
@@ -1089,6 +1238,40 @@ const TOOLS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "analyze_table",
+      description:
+        "对用户本轮上传的 CSV / Excel 表格做确定性统计：行数、分组计数、求和、平均、最小/最大。用户问“按某列统计/画图/哪一类最多/平均多少”，或上传了表格时使用。必须先调用本工具再给数字，不要手算。返回的 groups 会自动生成柱状图。",
+      parameters: {
+        type: "object",
+        properties: {
+          file: {
+            type: "string",
+            description: "文件名（可只写一部分）；只有一张表时可省略",
+          },
+          group_by: { type: "string", description: "分组列名，如“科”“年份”" },
+          metric: {
+            type: "string",
+            enum: ["count", "sum", "avg", "min", "max"],
+            description: "统计方式，默认 count",
+          },
+          value_column: {
+            type: "string",
+            description: "metric 为 sum/avg/min/max 时的数值列名",
+          },
+          filter_column: { type: "string", description: "筛选列名（可选）" },
+          filter_contains: {
+            type: "string",
+            description: "筛选值包含的文本（可选）",
+          },
+          limit: { type: "number", description: "返回前 N 组，1–30，默认 15" },
+        },
+        required: [],
+      },
+    },
+  },
 ];
 
 async function execTool(name, args, ctx = {}) {
@@ -1161,6 +1344,8 @@ async function execToolInner(name, args, ctx = {}) {
         note:
           "OpenAlex/Crossref/Europe PMC 可直接检索；Nature 用 ISSN 过滤；知网/万方/WoS 需要机构登录或订阅，只能给检索入口。",
       };
+    case "analyze_table":
+      return analyzeTable(ctx.tables || [], args || {});
     case "search_knowledge": {
       const max = 3;
       if ((ctx.kbCalls || 0) >= max) {
@@ -1873,7 +2058,8 @@ const SYSTEM_PROMPT = `你是「世界树」的 AI 数据分析助手，服务�
 17. 引用格式：LOTUS 数据写“LOTUS 260413”；论文写“第一作者 et al. 年份, 期刊, DOI”；权威网站写“站点名, URL（访问日期）”；用户文档写《文件名》第 N 段。不要把论文或网页说成 LOTUS 数据。
 18. 论文和网站用于解释背景、方法学、字段和出处，不能替代 LOTUS 统计；如果两者与 LOTUS 冲突，以 LOTUS 为准并说明差异。
 19. 用户问论文、文献、研究进展、期刊、作者、DOI，或点名 Nature / Web of Science / 知网 / 万方时，优先调用 search_papers。国际文献用 openalex/crossref/europepmc；Nature 用 source="nature"；知网/万方/WoS 用对应 source，工具会返回检索入口。需要确认有哪些外部源、或某个源失败要换源时，调用 list_research_sources。不要假装已经拿到需要登录的受限全文。
-20. search_papers 一轮最多调用 3 次；结果要写清标题、作者、年份、期刊和 DOI/链接。没有结果就如实说明，并给出可点击的检索入口；不要把知网/万方/WoS 的入口说成已经检索过的结果。若返回 alternatives，明确写“以下是 OpenAlex 公开替代结果”，不要冒充知网/万方/WoS 的结果。`;
+20. search_papers 一轮最多调用 3 次；结果要写清标题、作者、年份、期刊和 DOI/链接。没有结果就如实说明，并给出可点击的检索入口；不要把知网/万方/WoS 的入口说成已经检索过的结果。若返回 alternatives，明确写“以下是 OpenAlex 公开替代结果”，不要冒充知网/万方/WoS 的结果。
+21. 用户上传 CSV / Excel，或消息里出现【本轮上传的结构化表格】时，涉及计数、求和、平均、分组、画图必须调用 analyze_table；不要手算，也不要用 search_knowledge 代替表格统计。工具返回 groups 时系统会自动生成柱状图，不要再重复调用 render_chart。`;
 
 function toolResultCount(result) {
   const n =
@@ -1893,6 +2079,11 @@ function compactToolResult(name, result) {
     ok: result.ok,
     count: result.count,
     total: result.total,
+    file: result.file,
+    rows: result.rows,
+    columns: result.columns?.slice(0, 30),
+    group_by: result.group_by,
+    value_label: result.value_label,
     source: result.source,
     sourceLabel: result.sourceLabel,
     groups: result.groups?.slice(0, 8),
@@ -2127,6 +2318,9 @@ function fallbackResearchPlan(question) {
   if (/相似|similar/i.test(q)) {
     steps[0] = { title: "定位目标分子并找相似结构", tool: "find_similar" };
   }
+  if (/表格|CSV|Excel|上传.*数据|按.*统计|平均|求和/i.test(q)) {
+    steps.unshift({ title: "统计上传表格", tool: "analyze_table" });
+  }
   if (/论文|文献|期刊|DOI|Nature|Web of Science|WoS|知网|万方|研究进展/i.test(q)) {
     steps.splice(1, 0, { title: "检索论文与 DOI", tool: "search_papers" });
   }
@@ -2280,7 +2474,7 @@ async function makeResearchPlan(question, context = {}) {
     ? `图片结构化分析：${context.imageSummary}。`
     : "";
   const prompt = `你是「世界树」的研究规划器。根据用户问题，制定 2–4 步可执行的研究计划。
-可用工具：query_molecules（查 LOTUS 结构/统计）、find_similar（相似分子）、explain（读元数据）、render_chart（图表）、search_knowledge（知识库/论文/网站）、search_papers（OpenAlex/Crossref/Europe PMC/Nature/知网/万方/WoS 文献检索）、web_search（公开网页）、scene_action（3D 场景动作）。
+可用工具：query_molecules（查 LOTUS 结构/统计）、find_similar（相似分子）、explain（读元数据）、render_chart（图表）、analyze_table（对上传的 CSV/Excel 做分组统计）、search_knowledge（知识库/论文/网站）、search_papers（OpenAlex/Crossref/Europe PMC/Nature/知网/万方/WoS 文献检索）、web_search（公开网页）、scene_action（3D 场景动作）。
 要求：
 - 第一步必须用 LOTUS 工具核实数据，不能先下结论；
 - 涉及背景/论文/定义时安排 search_knowledge；
@@ -2428,6 +2622,18 @@ async function runChat(res, body, clientSignal = null) {
           .join(", ")}`
       );
     }
+  }
+
+  // 结构化表格：CSV / Excel 不进知识库找段落，而是交给 analyze_table 做真实统计
+  const tables = tablesFromAttachments(attachments);
+  if (tables.length) {
+    webCtx.tables = tables;
+    messages.push({ role: "user", content: tableContextText(tables) });
+    console.log(
+      `[ai] tables: ${tables
+        .map((t) => `${t.name}(${t.data.length}行×${t.columns.length}列)`)
+        .join(", ")}`
+    );
   }
 
   // 图片：先做 JSON 结构化抽取，再由服务端自动查 LOTUS / 相似分子 / 分类图
@@ -2802,6 +3008,23 @@ async function runChat(res, body, clientSignal = null) {
         if (call.function.name === "render_chart" && result.spec) {
           sse(res, { type: "chart", spec: result.spec });
         }
+        if (
+          call.function.name === "analyze_table" &&
+          result?.ok &&
+          Array.isArray(result.groups) &&
+          result.groups.length
+        ) {
+          sse(res, {
+            type: "chart",
+            spec: {
+              type: "bar",
+              title: `${result.file} · ${result.group_by || result.value_label || "统计"}`,
+              x_label: result.group_by || "分类",
+              y_label: result.value_label || "行数",
+              data: result.groups,
+            },
+          });
+        }
         if (call.function.name === "scene_action" && result.ok) {
           sse(res, {
             type: "scene",
@@ -2918,6 +3141,22 @@ function json(res, code, obj) {
 const server = createServer(async (req, res) => {
   const url = new URL(req.url || "/", "http://localhost");
 
+  // 简单的 IP 限流：聊天最严，写接口次之，读接口宽松
+  const isChatPost = url.pathname === "/api/ai/chat" && req.method === "POST";
+  const isWrite = req.method !== "GET" && req.method !== "HEAD";
+  const retry = rateLimit(
+    req,
+    isChatPost ? "chat" : isWrite ? "write" : "read",
+    isChatPost ? RATE_CHAT : isWrite ? RATE_WRITE : RATE_READ
+  );
+  if (retry) {
+    return json(res, 429, {
+      ok: false,
+      error: `请求过于频繁（${isChatPost ? RATE_CHAT : isWrite ? RATE_WRITE : RATE_READ} 次/分钟），请 ${retry} 秒后再试。`,
+      retryAfter: retry,
+    });
+  }
+
   if (url.pathname === "/api/ai/health") {
     return json(res, 200, {
       ok: true,
@@ -3009,11 +3248,59 @@ const server = createServer(async (req, res) => {
     }
   }
 
+  // 最近一次研究：GET 取回 / POST 保存（按匿名会话 ID，不存图片）
+  if (url.pathname === "/api/ai/session/last") {
+    const sid = sessionIdFrom(req);
+    if (!sid) {
+      return json(res, 400, { ok: false, error: "缺少或无效的会话 ID" });
+    }
+    const map = loadSessions();
+    if (req.method === "GET") {
+      const entry = map[sid];
+      if (!entry || Date.now() - Number(entry.savedAt || 0) > SESSION_TTL_MS) {
+        return json(res, 200, { ok: true, session: null });
+      }
+      return json(res, 200, {
+        ok: true,
+        session: entry.data,
+        savedAt: entry.savedAt,
+      });
+    }
+    if (req.method === "POST") {
+      try {
+        const body = await readBody(req, 512 * 1024);
+        const session = sanitizeSession(body);
+        if (!session) {
+          return json(res, 400, {
+            ok: false,
+            error: "会话内容无效或超过 128KB",
+          });
+        }
+        map[sid] = { savedAt: Date.now(), data: session };
+        persistSessions();
+        return json(res, 200, { ok: true, savedAt: map[sid].savedAt });
+      } catch (err) {
+        return json(res, 400, {
+          ok: false,
+          error: String(err?.message || err).slice(0, 200),
+        });
+      }
+    }
+    return json(res, 405, { ok: false, error: "Method Not Allowed" });
+  }
+
   if (url.pathname === "/api/ai/config" && req.method === "GET") {
     return json(res, 200, publicConfig());
   }
 
   if (url.pathname === "/api/ai/config" && req.method === "POST") {
+    if (!configWriteAllowed(req)) {
+      return json(res, 403, {
+        ok: false,
+        error:
+          "服务端已锁定 AI 配置。请通过 ai/.env 设置，或在设置面板填写管理令牌（AI_ADMIN_TOKEN）。",
+      });
+    }
     try {
       const body = await readBody(req);
       return json(res, 200, { ok: true, config: saveConfig(body) });
@@ -3273,6 +3560,20 @@ const server = createServer(async (req, res) => {
   }
 
   if (url.pathname === "/api/ai/chat" && req.method === "POST") {
+    const ip = clientIp(req);
+    const ipRunning = ipInflight.get(ip) || 0;
+    if (
+      metrics.inflightChats >= MAX_CONCURRENT_CHATS ||
+      ipRunning >= MAX_CONCURRENT_PER_IP
+    ) {
+      return json(res, 429, {
+        ok: false,
+        error:
+          ipRunning >= MAX_CONCURRENT_PER_IP
+            ? "同一访客的并行请求过多，请等上一轮回答结束。"
+            : "当前演示请求较多，请稍后再试。",
+      });
+    }
     let body;
     try {
       // 图片以 base64 data URL 随聊天提交：2 张 × 8MB ≈ 22MB，留给 JSON 余量
@@ -3298,6 +3599,7 @@ const server = createServer(async (req, res) => {
     metrics.chatRequests++;
     metrics.lastChatAt = Date.now();
     metrics.inflightChats++;
+    ipInflight.set(ip, ipRunning + 1);
     try {
       await runChat(res, body, clientAbort.signal);
     } catch (err) {
@@ -3305,6 +3607,9 @@ const server = createServer(async (req, res) => {
       console.error("[ai] chat handler error:", err);
     } finally {
       metrics.inflightChats--;
+      const left = (ipInflight.get(ip) || 1) - 1;
+      if (left > 0) ipInflight.set(ip, left);
+      else ipInflight.delete(ip);
       // 用户点停止也算一次正常结束，只是单独计数，便于区分“服务端继续跑”
       if (clientAbort.signal.aborted) metrics.chatAborted++;
       else metrics.chatCompleted++;

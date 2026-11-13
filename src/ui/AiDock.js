@@ -27,6 +27,9 @@ function humanSize(n) {
 /** 把服务端/网络的原始错误翻译成用户能照做的提示 */
 function friendlyError(message) {
   const s = String(message || "").trim();
+  if (/请求过于频繁|并行请求过多|演示请求较多|请求较多/i.test(s)) {
+    return s.slice(0, 160) || "当前请求较多，请稍后再试。";
+  }
   if (/429|1305|访问量过大|繁忙|overload|rate.?limit/i.test(s)) {
     return "模型服务当前比较繁忙（429），已自动重试仍未成功。请等 10–30 秒后点“重试”。";
   }
@@ -167,9 +170,33 @@ const TOOL_LABELS = {
   search_papers: "论文检索",
   list_research_sources: "查看数据源",
   search_knowledge: "检索知识库",
+  analyze_table: "分析表格",
 };
 
 const LAST_RESEARCH_KEY = "worldtree:last-research:v1";
+const SESSION_STORAGE_KEY = "worldtree:session:v1";
+
+/** 匿名会话 ID：用于服务端保存最近一次研究，不含个人信息 */
+function getSessionId() {
+  try {
+    const saved = localStorage.getItem(SESSION_STORAGE_KEY);
+    if (/^[A-Za-z0-9_-]{16,64}$/.test(saved || "")) return saved;
+    const raw =
+      (globalThis.crypto?.randomUUID?.() ||
+        `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`) +
+      Math.random().toString(36).slice(2);
+    const id = raw.replace(/-/g, "").slice(0, 40);
+    localStorage.setItem(SESSION_STORAGE_KEY, id);
+    return id;
+  } catch (_) {
+    return "";
+  }
+}
+
+function sessionHeaders(extra = {}) {
+  const id = getSessionId();
+  return id ? { ...extra, "x-ai-session": id } : extra;
+}
 
 function loadLastResearch() {
   try {
@@ -183,11 +210,44 @@ function loadLastResearch() {
   }
 }
 
-function saveLastResearch(data) {
+function writeLocalResearch(data) {
   try {
     localStorage.setItem(LAST_RESEARCH_KEY, JSON.stringify(data));
   } catch (_) {
     // 浏览器禁用 localStorage 或空间不足时静默失败，不影响当前对话
+  }
+}
+
+function saveLastResearch(data) {
+  writeLocalResearch(data);
+  // 服务端副本：换设备 / 清缓存后仍能「继续上次」
+  try {
+    fetch("/api/ai/session/last", {
+      method: "POST",
+      headers: sessionHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify(data),
+    }).catch(() => {});
+  } catch (_) {}
+}
+
+/** 启动时用服务端副本补齐本地缓存（服务端更新才覆盖） */
+async function syncResearchFromServer() {
+  try {
+    const res = await fetch("/api/ai/session/last", {
+      headers: sessionHeaders(),
+      cache: "no-store",
+      signal: AbortSignal.timeout(4000),
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    const remote = data?.session;
+    if (!remote?.plan?.goal || !Array.isArray(remote.plan.steps)) return false;
+    const local = loadLastResearch();
+    if (local && Number(local.ts || 0) >= Number(remote.ts || 0)) return false;
+    writeLocalResearch(remote);
+    return true;
+  } catch (_) {
+    return false;
   }
 }
 
@@ -226,6 +286,25 @@ export function mountAiDock(el, { scene } = {}) {
           <div class="ai-msg ai-msg-ai ai-intro">
             <div class="ai-msg-head">
               <span class="ai-avatar">✦</span><b>AI 分析</b><em>世界树助手</em>
+            </div>
+            <div class="ai-hero">
+              <div class="ai-hero-kicker">AI 研究台</div>
+              <h2>从 22.7 万条 LOTUS 结构开始</h2>
+              <p>查数据、读论文、识图、分析表格，最后导出可核对的研究简报。</p>
+              <div class="ai-hero-tasks">
+                <button type="button" data-ai-suggest="找出黄酮类分子，按来源科分布并画图">
+                  <b>查数据</b><span>黄酮类按科分布</span>
+                </button>
+                <button type="button" data-ai-suggest="检索槲皮素 quercetin 近五年的论文，给出标题、期刊、年份和 DOI">
+                  <b>读论文</b><span>检索 DOI 与期刊</span>
+                </button>
+                <button type="button" data-ai-image="1">
+                  <b>识图</b><span>结构式 / 植物照片</span>
+                </button>
+                <button type="button" data-ai-upload="1">
+                  <b>分析表格</b><span>CSV / Excel 统计</span>
+                </button>
+              </div>
             </div>
             <p>你好，我是世界树 AI 分析助手。你可以直接用中文提问，我会先查 LOTUS 数据，再给你结果、图表和出处。</p>
             <div class="ai-capabilities">
@@ -1234,6 +1313,10 @@ export function mountAiDock(el, { scene } = {}) {
       summary = `${result.sources?.length ?? 0} 个源`;
     } else if (name === "search_knowledge" && result?.ok) {
       summary = `${result.count ?? 0} 段`;
+    } else if (name === "analyze_table" && result?.ok) {
+      summary = `${result.rows ?? 0} 行${
+        result.group_by ? ` · 按${result.group_by}` : ""
+      }`;
     } else if (result?.error) {
       summary = String(result.error).slice(0, 60);
     }
@@ -1484,7 +1567,7 @@ export function mountAiDock(el, { scene } = {}) {
       }
       const res = await fetch("/api/ai/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: sessionHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(payload),
         signal: ac.signal,
       });
@@ -1740,6 +1823,29 @@ export function mountAiDock(el, { scene } = {}) {
   refreshContinueBtn();
   continueBtn?.addEventListener("click", restoreLastResearch);
 
+  // 服务端「最近一次研究」补齐本地缓存
+  syncResearchFromServer().then((updated) => {
+    if (updated) refreshContinueBtn();
+  });
+
+  // 首次进入自动展开 AI 研究台（桌面端；之后记住不再自动展开）
+  const AI_AUTO_OPEN_KEY = "worldtree:ai-auto-open:v1";
+  function autoOpenOnce() {
+    try {
+      if (localStorage.getItem(AI_AUTO_OPEN_KEY)) return;
+    } catch (_) {}
+    if (window.innerWidth < 900) return;
+    if (document.body.classList.contains("ui-intro")) return;
+    if (el.classList.contains("is-open")) return;
+    try {
+      localStorage.setItem(AI_AUTO_OPEN_KEY, "1");
+    } catch (_) {}
+    setOpen(true);
+    thread.scrollTop = 0;
+  }
+  window.addEventListener("eco:intro-done", () => setTimeout(autoOpenOnce, 900));
+  setTimeout(autoOpenOnce, 7000);
+
   el.querySelector("#aiIntroBtn")?.addEventListener("click", () => {
     setOpen(true);
     const intro = el.querySelector("#aiExample");
@@ -1869,6 +1975,12 @@ export function mountAiDock(el, { scene } = {}) {
 
   // 建议 chips
   el.addEventListener("click", (e) => {
+    const uploadChip = e.target.closest("[data-ai-upload]");
+    if (uploadChip) {
+      setOpen(true);
+      fileInput.click();
+      return;
+    }
     const imageChip = e.target.closest("[data-ai-image]");
     if (imageChip) {
       setOpen(true);

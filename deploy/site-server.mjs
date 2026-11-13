@@ -78,7 +78,12 @@ function proxyApi(req, res, urlObj) {
   } catch (_) {
     return send(res, 502, "Bad Gateway");
   }
-  const headers = { ...req.headers, host: target.host };
+  // 把真实来源 IP 传给内部服务，供 AI 限流使用；不信任浏览器自带的 XFF
+  const headers = {
+    ...req.headers,
+    host: target.host,
+    "x-real-ip": req.socket?.remoteAddress || "",
+  };
   const preq = httpRequest(
     {
       hostname: target.hostname,
