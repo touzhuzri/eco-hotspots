@@ -2,61 +2,211 @@
   {
     "q": "LOTUS 数据集包含多少条天然产物？",
     "doc": "LOTUS 数据集卡片",
-    "keywords": ["227"]
+    "citation": "LOTUS 260413",
+    "type": "lotus",
+    "keywords": ["227,319", "227"]
   },
   {
     "q": "LOTUS 的数据字段包括哪些？",
     "doc": "LOTUS 数据集卡片",
-    "keywords": ["InChIKey"]
+    "citation": "LOTUS 数据集卡片",
+    "type": "lotus",
+    "keywords": ["InChIKey", "SMILES"]
   },
   {
     "q": "LOTUS 的版本快照是什么？",
     "doc": "LOTUS 数据集卡片",
+    "citation": "LOTUS 260413",
+    "type": "lotus",
     "keywords": ["260413"]
   },
   {
     "q": "LOTUS 论文发表在哪个期刊？",
     "doc": "Rutz 2022 LOTUS（eLife）",
+    "citation": "10.7554/eLife.70780",
+    "type": "paper",
     "keywords": ["eLife"]
   },
   {
     "q": "LOTUS 论文的 DOI 是什么？",
     "doc": "Rutz 2022 LOTUS（eLife）",
+    "citation": "10.7554/eLife.70780",
+    "type": "paper",
     "keywords": ["10.7554"]
   },
   {
     "q": "ClassyFire 用来做什么？",
     "doc": "ClassyFire 2016",
+    "citation": "10.1186/s13321-016-0174-y",
+    "type": "paper",
     "keywords": ["分类"]
   },
   {
     "q": "NPClassifier 的核心方法是什么？",
     "doc": "NPClassifier 2021",
+    "citation": "10.1021/acs.jnatprod.1c00399",
+    "type": "paper",
     "keywords": ["深度", "神经网络"]
   },
   {
     "q": "COCONUT 2.0 重点改进了哪些数据质量？",
     "doc": "COCONUT 2.0（NAR 2024）",
+    "citation": "10.1093/nar/gkae1063",
+    "type": "paper",
     "keywords": ["去重"]
   },
   {
     "q": "ChEBI 是什么数据库？",
     "doc": "ChEBI",
+    "citation": "ebi.ac.uk/chebi",
+    "type": "website",
     "keywords": ["本体"]
   },
   {
     "q": "PubChem 可以查什么？",
     "doc": "PubChem",
+    "citation": "pubchem.ncbi.nlm.nih.gov",
+    "type": "website",
     "keywords": ["化合物"]
   },
   {
     "q": "RDKit 在本项目里承担什么工作？",
     "doc": "RDKit 文档",
+    "citation": "rdkit.org",
+    "type": "website",
     "keywords": ["Morgan", "指纹"]
   },
   {
     "q": "Three.js 在世界树里用来做什么？",
     "doc": "Three.js 文档",
+    "citation": "threejs.org",
+    "type": "website",
     "keywords": ["WebGL"]
+  },
+  {
+    "q": "LOTUS 快照里有多少个物种节点？",
+    "doc": "LOTUS 数据集卡片",
+    "citation": "LOTUS 260413",
+    "type": "lotus",
+    "keywords": ["1,602"]
+  },
+  {
+    "q": "LOTUS 数据采用什么许可？",
+    "doc": "LOTUS 数据集卡片",
+    "citation": "CC0",
+    "type": "lotus",
+    "keywords": ["CC0"]
+  },
+  {
+    "q": "LOTUS 中 InChIKey 的作用是什么？",
+    "doc": "LOTUS 数据集卡片",
+    "citation": "LOTUS 数据集卡片",
+    "type": "lotus",
+    "keywords": ["唯一标识"]
+  },
+  {
+    "q": "LOTUS 的 family 字段表示什么？",
+    "doc": "LOTUS 数据集卡片",
+    "citation": "LOTUS 数据集卡片",
+    "type": "lotus",
+    "keywords": ["来源生物科"]
+  },
+  {
+    "q": "LOTUS 快照里 Asteraceae 有多少条记录？",
+    "doc": "LOTUS 数据集卡片",
+    "citation": "LOTUS 数据集卡片",
+    "type": "lotus",
+    "keywords": ["22,670"]
+  },
+  {
+    "q": "Rutz 2022 论文的作者是谁？",
+    "doc": "Rutz 2022 LOTUS（eLife）",
+    "citation": "10.7554/eLife.70780",
+    "type": "paper",
+    "keywords": ["Rutz"]
+  },
+  {
+    "q": "LOTUS 论文如何强调数据可追溯？",
+    "doc": "Rutz 2022 LOTUS（eLife）",
+    "citation": "10.7554/eLife.70780",
+    "type": "paper",
+    "keywords": ["追溯"]
+  },
+  {
+    "q": "ClassyFire 的分类层级有什么特点？",
+    "doc": "ClassyFire 2016",
+    "citation": "10.1186/s13321-016-0174-y",
+    "type": "paper",
+    "keywords": ["层级"]
+  },
+  {
+    "q": "NPClassifier 输出什么？",
+    "doc": "NPClassifier 2021",
+    "citation": "10.1021/acs.jnatprod.1c00399",
+    "type": "paper",
+    "keywords": ["结构类别"]
+  },
+  {
+    "q": "COCONUT online 2021 强调哪些数据组织方式？",
+    "doc": "COCONUT online 2021",
+    "citation": "10.1186/s13321-020-00478-9",
+    "type": "paper",
+    "keywords": ["去重"]
+  },
+  {
+    "q": "COCONUT 2.0 如何改进来源追踪？",
+    "doc": "COCONUT 2.0（NAR 2024）",
+    "citation": "10.1093/nar/gkae1063",
+    "type": "paper",
+    "keywords": ["来源追踪"]
+  },
+  {
+    "q": "LOTUS 官网提供哪些功能？",
+    "doc": "LOTUS 官网",
+    "citation": "lotus.naturalproducts.net",
+    "type": "website",
+    "keywords": ["浏览"]
+  },
+  {
+    "q": "LOTUS 数据下载页提供什么？",
+    "doc": "LOTUS 数据下载",
+    "citation": "lotus.naturalproducts.net/download",
+    "type": "website",
+    "keywords": ["metadata"]
+  },
+  {
+    "q": "ChEBI 由哪个机构维护？",
+    "doc": "ChEBI",
+    "citation": "ebi.ac.uk/chebi",
+    "type": "website",
+    "keywords": ["欧洲生物信息研究所"]
+  },
+  {
+    "q": "PubChem 的 CID 可以用来做什么？",
+    "doc": "PubChem",
+    "citation": "pubchem.ncbi.nlm.nih.gov",
+    "type": "website",
+    "keywords": ["交叉引用"]
+  },
+  {
+    "q": "RDKit 的 ETKDG 用来做什么？",
+    "doc": "RDKit 文档",
+    "citation": "rdkit.org",
+    "type": "website",
+    "keywords": ["构象"]
+  },
+  {
+    "q": "智谱开放平台的接口和什么兼容？",
+    "doc": "智谱开放平台",
+    "citation": "open.bigmodel.cn",
+    "type": "website",
+    "keywords": ["OpenAI"]
+  },
+  {
+    "q": "LOTUS 是否提供药效、安全性或临床结论？",
+    "doc": "LOTUS 数据集卡片",
+    "citation": "LOTUS 数据集卡片",
+    "type": "limitation",
+    "keywords": ["不提供药效", "安全性"]
   }
 ]

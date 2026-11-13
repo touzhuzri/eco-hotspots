@@ -1319,6 +1319,10 @@ export function mountTreeScene(rootEl) {
         document.body.classList.remove("ui-intro");
         document.body.classList.remove("idle");
         lastInteraction = performance.now();
+        // 性能埋点：世界树入场完成（单位 ms，相对页面加载）
+        if (!window.__worldTreeReadyAt) {
+          window.__worldTreeReadyAt = performance.now();
+        }
         window.dispatchEvent(new CustomEvent("eco:intro-done"));
       }
     }

@@ -1,7 +1,45 @@
 # RAG 检索评测
 
 评测脚本：`scripts/rag-eval.mjs`  
-评测集：`data/kb-eval/questions.json`（12 题，覆盖 LOTUS 卡片、论文、权威网站）
+评测集：`data/kb-eval/questions.json`（30 题，覆盖 LOTUS 卡片、论文、权威网站、数据局限性）
+
+题目类型：`lotus` / `paper` / `website` / `limitation`。每题包含 `doc`、`citation`、`keywords`，用于同时检查文档命中、引用标识和内容关键词。
+
+## 2026-11-13 扩展评测集
+
+在原有 12 题基础上扩到 30 题，新增：
+
+- LOTUS 数据规模、许可、字段含义、来源科记录数
+- Rutz 2022、ClassyFire、NPClassifier、COCONUT 1.0/2.0 的题录与方法问题
+- LOTUS 官网、下载页、ChEBI、PubChem、RDKit、Three.js、智谱开放平台
+- 数据局限性：LOTUS 是否提供药效、安全性或临床结论
+
+检索评测新增 `Cite@4`：前 4 条结果是否包含期望引用标识（DOI / URL / 文档名）。运行：
+
+```bash
+node scripts/rag-eval.mjs
+```
+
+### 30 题实测结果
+
+环境：`data/kb/` 内置知识库 14 个文档 / 26 个片段（LOTUS 卡片 + 5 篇论文 + 8 个权威网站），取前 4 条。
+
+| 指标 | local-hash（768 维） | BAAI/bge-m3（1024 维） |
+| --- | --- | --- |
+| Hit@4 | 30/30（100%） | 30/30（100%） |
+| MRR | 0.983 | **1.000** |
+| KW@4 | 30/30（100%） | 30/30（100%） |
+| Cite@4 | 30/30（100%） | 30/30（100%） |
+
+两套向量都能把期望文档召回；`bge-m3` 把全部 30 题的目标文档排到第 1 位（local-hash 有 1 题排第 2）。`Cite@4` 要求前 4 条里出现期望 DOI / URL / 文档名，30 题全部命中。
+
+回答级引用评测（可选，会产生模型费用）：
+
+```bash
+AI_EVAL_CHAT=1 AI_EVAL_CHAT_LIMIT=8 node scripts/citation-eval.mjs
+```
+
+它会检查回答是否包含期望 DOI / URL / 文档名、关键词，以及局限类问题是否明确说明“不提供 / 不含 / 不能”。
 
 ## 2026-11-11 基线（local-hash）
 

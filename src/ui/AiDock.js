@@ -92,6 +92,11 @@ const INTRO_OPTIONS = [
     title: "先在世界树里选中一颗分子",
   },
   {
+    label: "查论文 / DOI",
+    prompt: "查一下青蒿素抗疟研究的论文，给出标题、期刊、年份和 DOI",
+    title: "OpenAlex / Crossref / Europe PMC；知网、万方、Nature、WoS 提供检索入口",
+  },
+  {
     label: "上传 PDF / CSV 试试",
     prompt: "上传一份 PDF、Word 或 CSV 试试",
   },
@@ -141,6 +146,11 @@ const CAPABILITIES = [
     prompt: "解释黄酮类分子的来源和分类，并注明 LOTUS 出处",
   },
   {
+    label: "论文 / DOI 检索",
+    prompt: "检索槲皮素 quercetin 近五年的论文，给出标题、期刊、年份和 DOI",
+    title: "OpenAlex / Crossref / Europe PMC；知网、万方、Nature、WoS 提供检索入口",
+  },
+  {
     label: "研究任务",
     research: true,
     title: "多步规划、工具执行，并生成可导出的研究简报",
@@ -154,8 +164,32 @@ const TOOL_LABELS = {
   scene_action: "场景动作",
   explain: "读取元数据",
   web_search: "联网搜索",
+  search_papers: "论文检索",
+  list_research_sources: "查看数据源",
   search_knowledge: "检索知识库",
 };
+
+const LAST_RESEARCH_KEY = "worldtree:last-research:v1";
+
+function loadLastResearch() {
+  try {
+    const raw = localStorage.getItem(LAST_RESEARCH_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (!data?.plan?.goal || !Array.isArray(data?.plan?.steps)) return null;
+    return data;
+  } catch (_) {
+    return null;
+  }
+}
+
+function saveLastResearch(data) {
+  try {
+    localStorage.setItem(LAST_RESEARCH_KEY, JSON.stringify(data));
+  } catch (_) {
+    // 浏览器禁用 localStorage 或空间不足时静默失败，不影响当前对话
+  }
+}
 
 export function mountAiDock(el, { scene } = {}) {
   if (!el) return null;
@@ -168,6 +202,7 @@ export function mountAiDock(el, { scene } = {}) {
         <span class="ai-dock-sub">世界树 · LOTUS</span>
         <span class="ai-dock-status"><i></i><b id="aiStatusBadge">连接中…</b></span>
         <button type="button" class="ai-dock-kb" id="aiKbBtn" title="上传文档，回答时自动检索引用">知识库<b id="aiKbCount">0</b></button>
+        <button type="button" class="ai-dock-continue" id="aiContinueBtn" title="恢复上次研究任务" hidden>继续上次</button>
         <button type="button" class="ai-dock-capabilities" id="aiIntroBtn" title="查看能力与示例">能力</button>
         <button type="button" class="ai-dock-collapse" id="aiCollapse">收起</button>
       </div>
@@ -234,7 +269,7 @@ export function mountAiDock(el, { scene } = {}) {
                   )}</button>`
               ).join("")}
             </div>
-            <div class="ai-sources">数据来源：LOTUS frozen 260413 · 仅作科学传播，不构成用药建议</div>
+            <div class="ai-sources">数据来源：LOTUS frozen 260413 · 论文：OpenAlex / Crossref / Europe PMC · 仅作科学传播，不构成用药建议</div>
           </div>
         </div>
       </div>
@@ -279,6 +314,7 @@ export function mountAiDock(el, { scene } = {}) {
   const kbReembed = el.querySelector("#aiKbReembed");
   const suggestions = el.querySelector("#aiSuggestions");
   const collapseBtn = el.querySelector("#aiCollapse");
+  const continueBtn = el.querySelector("#aiContinueBtn");
   const statusBadge = el.querySelector("#aiStatusBadge");
   const pendingEl = el.querySelector("#aiPending");
   const pendingText = el.querySelector("#aiPendingText");
@@ -288,6 +324,10 @@ export function mountAiDock(el, { scene } = {}) {
   let pendingAction = null;
   let researchMode = false;
   let activeAbort = null;
+
+  function refreshContinueBtn() {
+    if (continueBtn) continueBtn.hidden = !loadLastResearch();
+  }
 
   function setResearchMode(value) {
     researchMode = !!value;
@@ -643,7 +683,7 @@ export function mountAiDock(el, { scene } = {}) {
       <div class="ai-live-cards"></div>
       <div class="ai-live-text"></div>
       <div class="ai-live-actions"></div>
-      <div class="ai-sources">数据来源：LOTUS frozen 260413 · 仅作科学传播，不构成用药建议</div>`;
+      <div class="ai-sources">数据来源：LOTUS frozen 260413 · 论文：OpenAlex / Crossref / Europe PMC · 仅作科学传播，不构成用药建议</div>`;
     thread.appendChild(div);
     return {
       div,
@@ -692,6 +732,155 @@ export function mountAiDock(el, { scene } = {}) {
     scrollBottom();
   }
 
+  function renderVision(live, analysis) {
+    if (!live?.cards || !analysis) return;
+    live.vision = analysis;
+    const rows = [];
+    const families = (analysis.family_candidates || [])
+      .map((c) => `${c.name} ${Math.round((Number(c.confidence) || 0) * 100)}%`)
+      .join("、");
+    const molecules = (analysis.molecule_candidates || [])
+      .map((c) => `${c.name} ${Math.round((Number(c.confidence) || 0) * 100)}%`)
+      .join("、");
+    if (families) rows.push(["科属候选", families]);
+    if (molecules) rows.push(["分子候选", molecules]);
+    if (analysis.structure_features?.length) {
+      rows.push(["结构特征", analysis.structure_features.join("、")]);
+    }
+    const confidence = Math.round(
+      (Number(analysis.overall_confidence) || 0) * 100
+    );
+    const card = document.createElement("div");
+    card.className = "ai-vision-card";
+    card.innerHTML = `
+      <div class="ai-vision-head">
+        <span>图像结构化</span>
+        <em>${esc(analysis.image_type || "other")} · 置信度 ${confidence}%</em>
+      </div>
+      ${analysis.subject ? `<p class="ai-vision-subject">${esc(analysis.subject)}</p>` : ""}
+      ${rows
+        .map(
+          ([label, value]) =>
+            `<div class="ai-vision-row"><b>${esc(label)}</b><span>${esc(
+              value
+            )}</span></div>`
+        )
+        .join("")}
+      ${
+        analysis.uncertain?.length
+          ? `<details class="ai-vision-uncertain"><summary>不确定项 ${analysis.uncertain.length} 条</summary><p>${esc(
+              analysis.uncertain.join("；")
+            )}</p></details>`
+          : ""
+      }`;
+    live.cards.appendChild(card);
+  }
+
+  function renderReflection(live, reflection) {
+    if (!live?.cards || !reflection) return;
+    live.reflection = reflection;
+    const card = document.createElement("div");
+    card.className = "ai-reflection";
+    card.innerHTML = `
+      <div class="ai-reflection-head">
+        <span>研究反思</span>
+        <em>${reflection.needs_replan ? "建议重规划" : "已核对"}</em>
+      </div>
+      <p>${esc(reflection.summary || "")}</p>
+      ${
+        reflection.issues?.length
+          ? `<ul>${reflection.issues
+              .slice(0, 5)
+              .map((x) => `<li>${esc(x)}</li>`)
+              .join("")}</ul>`
+          : ""
+      }
+      ${
+        reflection.next_steps?.length
+          ? `<div class="ai-reflection-next"><b>下一步</b>${reflection.next_steps
+              .slice(0, 4)
+              .map((x) => `<span>${esc(x)}</span>`)
+              .join("")}</div>`
+          : ""
+      }`;
+    if (reflection.next_steps?.length) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "ai-reflection-continue";
+      btn.textContent = "按建议继续";
+      btn.addEventListener("click", () => {
+        setResearchMode(true);
+        setOpen(true);
+        input.value = `继续上次研究：${
+          reflection.plan_goal || live._plan?.goal || ""
+        }。请按以下建议继续：${reflection.next_steps
+          .slice(0, 4)
+          .join("；")}`;
+        submit();
+      });
+      card.appendChild(btn);
+    }
+    live.cards.appendChild(card);
+  }
+
+  function restoreLastResearch() {
+    const last = loadLastResearch();
+    if (!last) {
+      refreshContinueBtn();
+      return;
+    }
+    chatHistory.splice(
+      0,
+      chatHistory.length,
+      ...(Array.isArray(last.history) ? last.history : [])
+        .filter((m) => m?.role === "user" || m?.role === "assistant")
+        .slice(-12)
+        .map((m) => ({
+          role: m.role,
+          content: String(m.content || "").slice(0, 4000),
+        }))
+    );
+    setResearchMode(true);
+    setOpen(true);
+    const live = createLiveMessage();
+    live.status?.remove();
+    if (last.vision) renderVision(live, last.vision);
+    renderPlan(live, { goal: last.plan.goal, steps: last.plan.steps });
+    live.plan?.querySelectorAll("li").forEach((li) => {
+      li.classList.remove("is-pending", "is-running", "is-error");
+      li.classList.add("is-done");
+    });
+    if (last.reflection) renderReflection(live, last.reflection);
+    live.text.innerHTML = mdToHtml(
+      `已恢复上次研究：**${last.plan.goal}**\n\n${
+        last.answer
+          ? `上次结论摘要：${String(last.answer).slice(0, 800)}${
+              String(last.answer).length > 800 ? "…" : ""
+            }`
+          : "上次没有保存正文。"
+      }`
+    );
+    const cont = document.createElement("button");
+    cont.type = "button";
+    cont.className = "ai-report-btn";
+    cont.textContent = "继续追问";
+    cont.addEventListener("click", () => {
+      input.focus();
+      input.placeholder = "继续追问这次研究…";
+    });
+    const redo = document.createElement("button");
+    redo.type = "button";
+    redo.className = "ai-report-btn";
+    redo.textContent = "重新执行";
+    redo.addEventListener("click", () => {
+      chatHistory.length = 0;
+      input.value = String(last.userText || last.plan.goal || "");
+      submit();
+    });
+    live.actions.append(cont, redo);
+    scrollBottom();
+  }
+
   function updatePlanStep(live, event) {
     const li = live?.plan?.querySelector(
       `[data-step="${Number(event?.index)}"]`
@@ -731,9 +920,95 @@ export function mountAiDock(el, { scene } = {}) {
     live.actions.appendChild(btn);
   }
 
-  function downloadReport({ userText, answer, plan, sources, tools, charts }) {
+  function downloadReport({
+    userText,
+    answer,
+    plan,
+    vision,
+    reflection,
+    sources,
+    tools,
+    charts,
+  }) {
     const now = new Date();
     const stamp = now.toISOString().slice(0, 10);
+    const visionLines = [];
+    if (vision) {
+      visionLines.push(
+        `- 图像类型：${vision.image_type || "other"}`,
+        `- 主体：${vision.subject || "未给出"}`,
+        `- 总体置信度：${Math.round(
+          (Number(vision.overall_confidence) || 0) * 100
+        )}%`
+      );
+      const families = (vision.family_candidates || [])
+        .map((x) => `${x.name}（${Math.round((Number(x.confidence) || 0) * 100)}%）`)
+        .join("、");
+      const molecules = (vision.molecule_candidates || [])
+        .map((x) => `${x.name}（${Math.round((Number(x.confidence) || 0) * 100)}%）`)
+        .join("、");
+      if (families) visionLines.push(`- 科属候选：${families}`);
+      if (molecules) visionLines.push(`- 分子候选：${molecules}`);
+      if (vision.structure_features?.length) {
+        visionLines.push(`- 结构特征：${vision.structure_features.join("、")}`);
+      }
+      if (vision.uncertain?.length) {
+        visionLines.push(`- 不确定项：${vision.uncertain.join("；")}`);
+      }
+    }
+    const reflectionLines = [];
+    if (reflection) {
+      reflectionLines.push(`- 判断：${reflection.summary || ""}`);
+      for (const item of reflection.issues || []) {
+        reflectionLines.push(`- 局限：${item}`);
+      }
+      for (const item of reflection.next_steps || []) {
+        reflectionLines.push(`- 下一步：${item}`);
+      }
+    }
+    const chartLines = [];
+    for (const c of charts || []) {
+      chartLines.push(`### ${c.title || "图表"}`, "");
+      if (Array.isArray(c.data) && c.data.length) {
+        chartLines.push("| 项目 | 数值 |", "| --- | --- |");
+        for (const row of c.data.slice(0, 20)) {
+          chartLines.push(`| ${row.label} | ${row.value} |`);
+        }
+      } else {
+        chartLines.push(`（${c.type || "chart"}，无表格数据）`);
+      }
+      chartLines.push("");
+    }
+    const sourceLines = [];
+    const seenSources = new Set();
+    for (const s of sources || []) {
+      const key = `${s.url || ""}|${s.name || ""}|${s.chunk || ""}`;
+      if (seenSources.has(key)) continue;
+      seenSources.add(key);
+      if (s.url) {
+        const meta = [s.year, s.journal].filter(Boolean).join(", ");
+        sourceLines.push(
+          `- 【${s.tag || s.sourceType || "资料"}】${s.name || s.url}${
+            meta ? `（${meta}）` : ""
+          } — ${s.url}`
+        );
+      } else if (s.sourceType === "paper") {
+        const meta = [s.year, s.journal].filter(Boolean).join(", ");
+        sourceLines.push(
+          `- 【${s.tag || "论文"}】${s.name}${meta ? `（${meta}）` : ""}`
+        );
+      } else if (s.name) {
+        sourceLines.push(
+          `- 【${s.tag || s.sourceType || "资料"}】《${s.name}》第 ${
+            s.chunk ?? "?"
+          } 段${
+            s.score != null
+              ? `（相关度 ${Math.round(Number(s.score) * 100)}%）`
+              : ""
+          }`
+        );
+      }
+    }
     const lines = [
       `# 世界树研究简报：${plan?.goal || userText.slice(0, 60)}`,
       "",
@@ -752,10 +1027,16 @@ export function mountAiDock(el, { scene } = {}) {
           `${i + 1}. ${s.title}${s.tool && s.tool !== "none" ? `（${TOOL_LABELS[s.tool] || s.tool}）` : ""}`
       ),
       "",
+      ...(visionLines.length
+        ? ["## 图像结构化", "", ...visionLines, ""]
+        : []),
       "## 结论",
       "",
       answer || "（本轮没有生成正文）",
       "",
+      ...(reflectionLines.length
+        ? ["## 研究反思", "", ...reflectionLines, ""]
+        : []),
       "## 工具记录",
       "",
       ...(tools?.length
@@ -764,20 +1045,12 @@ export function mountAiDock(el, { scene } = {}) {
       "",
       "## 图表",
       "",
-      ...(charts?.length
-        ? charts.map((c) => `- ${c.title || "图表"}（${c.type || "chart"}）`)
-        : ["- 无"]),
-      "",
+      ...(chartLines.length ? chartLines : ["- 无", ""]),
       "## 来源",
       "",
-      ...(sources?.length
-        ? sources.map(
-            (s) =>
-              `- 【${s.tag || s.sourceType || "资料"}】《${s.name}》第 ${s.chunk} 段${
-                s.score != null ? `（相关度 ${Math.round(Number(s.score) * 100)}%）` : ""
-              }`
-          )
-        : ["- 本轮没有引用知识库段落；LOTUS 统计以工具返回为准。"]),
+      ...(sourceLines.length
+        ? sourceLines
+        : ["- 本轮没有可结构化的引用；LOTUS 统计以工具返回为准。"]),
       "",
       "---",
       "",
@@ -847,6 +1120,85 @@ export function mountAiDock(el, { scene } = {}) {
   });
   pendingCancel.addEventListener("click", clearPending);
 
+  /** 论文检索入口：知网/万方/Nature/WoS 直接点开，不把入口伪装成已检索结果 */
+  function addPaperLinks(live, result) {
+    const links = Array.isArray(result?.links) ? result.links : [];
+    live._paperLinks ||= new Set();
+    live._paperSources ||= new Set();
+    let box = live.cards.querySelector(".ai-paper-links");
+    if (links.length && !box) {
+      box = document.createElement("div");
+      box.className = "ai-paper-links";
+      box.innerHTML = `<div class="ai-paper-links-head">文献检索入口</div>`;
+      live.cards.appendChild(box);
+    }
+    for (const link of links) {
+      const url = String(link?.url || "").trim();
+      if (!/^https?:\/\//i.test(url) || live._paperLinks.has(url)) continue;
+      live._paperLinks.add(url);
+      const a = document.createElement("a");
+      a.className = "ai-paper-link";
+      a.href = url;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.innerHTML = `<span>${esc(
+        link.label || link.source || "文献"
+      )}</span><em>${esc(link.note || "")}</em>`;
+      box.appendChild(a);
+    }
+    const papers = [
+      ...(Array.isArray(result?.results) ? result.results : []).map((p) => ({
+        ...p,
+        tag: "论文",
+      })),
+      ...(Array.isArray(result?.alternatives) ? result.alternatives : []).map(
+        (p) => ({ ...p, tag: "公开替代" })
+      ),
+    ].slice(0, 8);
+    for (const paper of papers) {
+      const name = String(paper.title || paper.name || "").trim();
+      const doi = String(paper.doi || "").trim();
+      const url = String(
+        doi
+          ? /^https?:\/\//i.test(doi)
+            ? doi
+            : `https://doi.org/${doi.replace(/^doi:\s*/i, "")}`
+          : paper.url || ""
+      ).trim();
+      const key = `${name}|${url}`;
+      if (!name || live._paperSources.has(key)) continue;
+      live._paperSources.add(key);
+      live.sources.push({
+        tag: paper.tag || "论文",
+        sourceType: "paper",
+        name,
+        url,
+        year: paper.year || "",
+        journal: paper.journal || "",
+        snippet: paper.abstract || paper.snippet || "",
+      });
+    }
+  }
+
+  function addWebSources(live, result) {
+    const rows = Array.isArray(result?.results) ? result.results : [];
+    live._webSources ||= new Set();
+    for (const row of rows.slice(0, 6)) {
+      const url = String(row.url || "").trim();
+      const name = String(row.title || url).trim();
+      const key = `${name}|${url}`;
+      if (!url || live._webSources.has(key)) continue;
+      live._webSources.add(key);
+      live.sources.push({
+        tag: "网站",
+        sourceType: "website",
+        name,
+        url,
+        snippet: row.snippet || "",
+      });
+    }
+  }
+
   function addToolChip(live, name, result) {
     let summary = "";
     if (name === "query_molecules" && result?.ok) {
@@ -870,6 +1222,16 @@ export function mountAiDock(el, { scene } = {}) {
         : `${result?.molecules?.length ?? 0} 条`;
     } else if (name === "web_search" && result?.ok) {
       summary = `${result.engine || "网络"} · ${result.results?.length ?? 0} 条`;
+      addWebSources(live, result);
+    } else if (name === "search_papers" && result?.ok) {
+      const n = result.results?.length ?? 0;
+      const alt = result.alternatives?.length ?? 0;
+      summary = `${result.sourceLabel || "论文"} · ${
+        n || (alt ? `公开替代 ${alt} 篇` : "检索入口")
+      }`;
+      addPaperLinks(live, result);
+    } else if (name === "list_research_sources" && result?.ok) {
+      summary = `${result.sources?.length ?? 0} 个源`;
     } else if (name === "search_knowledge" && result?.ok) {
       summary = `${result.count ?? 0} 段`;
     } else if (result?.error) {
@@ -1159,6 +1521,10 @@ export function mountAiDock(el, { scene } = {}) {
           if (event.type === "status") {
             live.status.hidden = false;
             live.status.textContent = event.text || "AI 正在分析…";
+          } else if (event.type === "vision") {
+            renderVision(live, event.analysis);
+          } else if (event.type === "reflection") {
+            renderReflection(live, event.reflection);
           } else if (event.type === "plan") {
             renderPlan(live, event);
           } else if (event.type === "step") {
@@ -1215,10 +1581,30 @@ export function mountAiDock(el, { scene } = {}) {
           userText,
           answer: finalText.trim(),
           plan: live._plan,
+          vision: live.vision || null,
+          reflection: live.reflection || null,
           sources: live.sources,
           tools: live.toolLog,
           charts: live.charts,
         });
+        if (researchMode) {
+          saveLastResearch({
+            userText,
+            plan: live._plan,
+            vision: live.vision || null,
+            reflection: live.reflection || null,
+            answer: finalText.trim().slice(0, 12000),
+            history: chatHistory.slice(-10).map((m) => ({
+              role: m.role,
+              content: String(m.content || "").slice(0, 4000),
+            })),
+            sources: live.sources.slice(-20),
+            tools: live.toolLog.slice(-20),
+            charts: live.charts.slice(-5),
+            ts: Date.now(),
+          });
+          refreshContinueBtn();
+        }
       }
       if (!finalText.trim() || hadError) addRetry();
       scrollBottom();
@@ -1351,6 +1737,8 @@ export function mountAiDock(el, { scene } = {}) {
 
   window.addEventListener("eco:ai-config-changed", refreshAiBadge);
   refreshAiBadge();
+  refreshContinueBtn();
+  continueBtn?.addEventListener("click", restoreLastResearch);
 
   el.querySelector("#aiIntroBtn")?.addEventListener("click", () => {
     setOpen(true);

@@ -10,8 +10,10 @@
  *   Hit@4    期望文档是否出现在前 4 条
  *   MRR      期望文档排名的倒数（第 1 名 = 1，未命中 = 0）
  *   KW@4     前 4 条片段是否包含期望关键词
+ *   Cite@4   前 4 条是否包含期望引用标识（DOI / URL / 文档名）
  *
- * 评测集在 data/kb-eval/questions.json；新增问题只需补 doc / keywords。
+ * 评测集在 data/kb-eval/questions.json；新增问题补 doc / citation / type / keywords。
+ * 题目 ≥ 20 时建议配合 scripts/citation-eval.mjs 做回答级引用评测。
  */
 
 import { readFileSync } from "node:fs";
@@ -41,6 +43,7 @@ const rows = [];
 let hit4 = 0;
 let mrr = 0;
 let kw4 = 0;
+let cite4 = 0;
 
 const health = await getJson("/api/ai/health").catch(() => null);
 const kb = health?.kb || {};
@@ -71,18 +74,26 @@ for (const item of CASES) {
   const keywordHit = top.some((h) =>
     (item.keywords || []).some((k) => String(h.snippet || "").includes(k))
   );
+  const citationHit = top.some((h) => {
+    const text = `${h.name || ""} ${h.snippet || ""}`;
+    if (item.citation && text.includes(item.citation)) return true;
+    return Boolean(item.doc && String(h.name || "").includes(item.doc));
+  });
   const found = rank > 0 && rank <= TOP_K;
 
   if (found) hit4++;
   if (rank > 0) mrr += 1 / rank;
   if (keywordHit) kw4++;
+  if (citationHit) cite4++;
 
   rows.push({
     q: item.q,
+    type: item.type || "other",
     expected: item.doc,
     rank: rank || "-",
     hit: found ? "✓" : "✗",
     kw: keywordHit ? "✓" : "✗",
+    cite: citationHit ? "✓" : "✗",
     top: hits[0]?.name || error || "-",
   });
 }
@@ -91,7 +102,7 @@ const width = Math.max(...rows.map((r) => [...r.q].length), 8);
 for (const r of rows) {
   const pad = " ".repeat(Math.max(0, width - [...r.q].length));
   console.log(
-    `${r.hit}  ${r.q}${pad}  期望=${r.expected}  排名=${r.rank}  关键词=${r.kw}  首条=${r.top}`
+    `${r.hit}  ${r.q}${pad}  类型=${r.type}  期望=${r.expected}  排名=${r.rank}  关键词=${r.kw}  引用=${r.cite}  首条=${r.top}`
   );
 }
 
@@ -100,6 +111,7 @@ console.log(`\n## 汇总`);
 console.log(`- Hit@${TOP_K}: ${hit4}/${CASES.length} (${pct(hit4 / n)})`);
 console.log(`- MRR: ${(mrr / n).toFixed(3)}`);
 console.log(`- KW@${TOP_K}: ${kw4}/${CASES.length} (${pct(kw4 / n)})`);
+console.log(`- Cite@${TOP_K}: ${cite4}/${CASES.length} (${pct(cite4 / n)})`);
 
 if (hit4 / n < 0.6) {
   console.log(

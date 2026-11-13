@@ -40,6 +40,7 @@ const EYE_Y = 158;
 const MOUTH_Y = 242;
 
 const SEL_SCALE = 0.72; // 选定后缩小，避免贴脸
+const SIZE_SCALE = 2 / 3; // 整体尺寸：原来的 2/3
 const CLOSED_EYES = new Set(["happy", "laugh", "wink", "doze", "bored"]);
 
 /** 到达后可以随机做的俏皮动作 */
@@ -1015,9 +1016,9 @@ export function createCompanion() {
     const sx = ((v.x + 1) / 2) * window.innerWidth;
     const sy = ((1 - v.y) / 2) * window.innerHeight;
     bubbleEl.style.left = `${Math.round(
-      Math.min(sx + 92, window.innerWidth - 240)
+      Math.min(sx + 92 * SIZE_SCALE, window.innerWidth - 240)
     )}px`;
-    bubbleEl.style.top = `${Math.round(sy - 74)}px`;
+    bubbleEl.style.top = `${Math.round(sy - 74 * SIZE_SCALE)}px`;
   }
 
   /** 屏幕点是否落在本体上（画布侧做命中，避免透明按钮挡住滚轮/拖拽） */
@@ -1085,7 +1086,10 @@ export function createCompanion() {
     const sy = ((1 - v.y) / 2) * window.innerHeight;
     const w = menuEl.offsetWidth || 220;
     const left = Math.max(12 + w / 2, Math.min(window.innerWidth - 12 - w / 2, sx));
-    const top = Math.max(12 + menuEl.offsetHeight, sy - 72);
+    const top = Math.max(
+      12 + menuEl.offsetHeight,
+      sy - 72 * SIZE_SCALE
+    );
     menuEl.style.left = `${Math.round(left)}px`;
     menuEl.style.top = `${Math.round(top)}px`;
   }
@@ -1178,7 +1182,7 @@ export function createCompanion() {
     shade.visible = false;
     innerDisc.material.opacity = 0.45;
     root.visible = true;
-    root.scale.setScalar(0.6);
+    root.scale.setScalar(0.6 * SIZE_SCALE);
     selected = null;
     hideScale = 1;
     mode = "idleToy";
@@ -1209,7 +1213,7 @@ export function createCompanion() {
     mode = "home";
     modeT0 = -1;
     hideScale = 1;
-    root.scale.setScalar(0.9);
+    root.scale.setScalar(0.9 * SIZE_SCALE);
     setExpression("idle");
     setLook(0, 0);
   }
@@ -1255,7 +1259,8 @@ export function createCompanion() {
     // 按视口可见高度取景，保证小助手在卡片里足够大
     const visH =
       2 * cam.position.length() * Math.tan((cam.fov * Math.PI) / 360);
-    const toyScale = Math.min(3.2, Math.max(0.9, (visH * 0.35) / 0.7));
+    const toyScale =
+      Math.min(3.2, Math.max(0.9, (visH * 0.35) / 0.7)) * SIZE_SCALE;
     const smooth = (x) => {
       const c = Math.min(1, Math.max(0, x));
       return c * c * (3 - 2 * c);
@@ -1744,7 +1749,8 @@ export function createCompanion() {
 
     const aspect = width / Math.max(1, height);
     const compact = height < 560 ? 0.72 : aspect < 1.05 ? 0.82 : 1;
-    const baseScale = Number.isFinite(step.scale) ? step.scale : 0.7;
+    const baseScale =
+      (Number.isFinite(step.scale) ? step.scale : 0.7) * SIZE_SCALE;
     // “按一下”时整体轻微一缩，像真的戳到界面
     const targetScale = baseScale * compact * (1 - 0.06 * tapK);
     const s = root.scale.x + (targetScale - root.scale.x) * Math.min(1, dt * 6);
@@ -1784,8 +1790,8 @@ export function createCompanion() {
     // 选中后仍用固定世界尺寸，让透视负责由远及近。
     const homeDepth = 4.2;
     const compact = height < 560 ? 0.72 : narrow ? 0.82 : 1;
-    const baseScale = 1.05 * compact;
-    const homeScale = 0.7 * compact;
+    const baseScale = 1.05 * compact * SIZE_SCALE;
+    const homeScale = 0.7 * compact * SIZE_SCALE;
 
     camera.updateMatrixWorld();
     forward.setFromMatrixColumn(camera.matrixWorld, 2).negate();

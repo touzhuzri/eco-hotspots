@@ -6,6 +6,8 @@
 
 每一颗星是一个天然产物结构；树冠、树干、根际与土壤对应来源生物的生态位置。可以缩放、检索、点亮、连线，也可以领养一颗属于自己的分子。
 
+站内 AI 分析坞不是普通聊天框：它直接查询 LOTUS 数据、检索知识库、读论文、识图、画图，并驱动 3D 场景。所有数字都走工具，关键结论都给出来源。
+
 **在线体验：** <http://play.simpfun.cn:41018/>
 
 ![世界树](docs/preview-tree.png)
@@ -18,8 +20,43 @@
 
 ---
 
+## AI 分析
+
+打开页面底部的 AI 分析坞，直接问：
+
+```text
+哪个科的黄酮最多？画分布图，并带我去看。
+```
+
+```text
+检索 quercetin 近五年的论文，优先 Nature，给出标题、期刊、年份和 DOI。
+```
+
+```text
+上传一张植物照片或结构式，判断可能的科/分子，查 LOTUS、找相似分子，并说明不确定性。
+```
+
+能力一览：
+
+- **数据分析**：LOTUS 227,319 条记录的真实查询、聚合、图表与 3D 定位，数字不靠模型记忆。
+- **RAG 溯源**：系统知识库（LOTUS 卡片 / 论文 / 权威网站）+ 用户上传 PDF/Word/Excel/PPT/CSV，回答标注《文件名》第 N 段或 DOI/URL。
+- **研究任务**：计划 → 工具执行 → 反思 → 结论，可导出 Markdown 研究简报，可「继续上次」。
+- **多模态**：图片先结构化（主体 / 科属候选 / 分子候选 / 置信度 / 不确定项），再自动查 LOTUS、找相似、画分布图。
+- **外部文献**：OpenAlex / Crossref / Europe PMC / Nature 直接检索；知网、万方、Web of Science 提供官方检索入口，不抓取受限全文。
+- **可停止**：点「■」会同时中止浏览器请求和服务端模型/工具调用。
+
+架构与演示材料：
+
+- [`docs/AI-ARCHITECTURE.md`](docs/AI-ARCHITECTURE.md)：AI 架构、研究任务、多模态、RAG 与文献检索流程图
+- [`docs/DEMO-SCRIPTS.md`](docs/DEMO-SCRIPTS.md)：2–3 分钟演示脚本
+- [`docs/rag-eval.md`](docs/rag-eval.md)：30 题检索评测与 Cite@4
+- [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md)：运行指标与测量方法
+
+---
+
 ## 特性
 
+- **AI 分析坞**：数据查询、图表、3D 定位、RAG 引用、论文检索、识图、研究任务与研究简报，全部通过工具和来源约束。
 - **星点世界树**：约 22.7 万个 LOTUS 结构点，按生态层位分布，支持旋转、缩放、惯性拖动和第一人称漫游。
 - **二十四节气环**：地面节气刻度；生长入场时指针绕场一周，刻线逐条伸向节气文字。
 - **季节花瓣**：樱花、油菜花、银杏每次刷新随机出现一种，背景大花瓣 + 前景极淡花瓣。
@@ -69,11 +106,12 @@
 2. 直接运行 `./start.sh daemon`（Windows 用 `start-windows.cmd`），AI 代理会一并启动；站点把 `/api/ai` 代理到本机 `8790`
 3. 打开页面底部 AI 分析坞，或右上角 ⚙ 配置服务商 / Base URL / 模型 / Key；同一面板的「多模态 / 视觉模型」可单独配置识图模型，并点「测试识图」验证
 4. 知识库分两层：内置的 **LOTUS 数据集卡片 + 开发参考论文 + 权威网站**（`data/kb-seed/`，不可删除），以及你上传的 PDF / Word / CSV；回答会自动检索并标注《文件名》第 N 段、论文 DOI 或网站 URL
-5. 识图：在 AI 坞点「识图」上传结构式、图表或照片，视觉模型先描述图片，再交给主模型调用 LOTUS 工具核对。可在右上角 ⚙ →「多模态 / 视觉模型」里单独配置并测试，纯文本模型无法识图
-6. 研究任务：点输入框旁「研究」，AI 先给出计划，再逐步调用工具，结束后可导出包含结论、工具记录和来源的 Markdown 简报
+5. 识图：在 AI 坞点「识图」上传结构式、图表或照片。视觉模型只输出结构化 JSON（主体、科属候选、分子候选、结构特征、置信度、不确定项），服务端再自动查 LOTUS、找相似分子、画分类分布并定位场景；低置信度候选不会自动查库。可在右上角 ⚙ →「多模态 / 视觉模型」里单独配置并测试
+6. 研究任务：点输入框旁「研究」，AI 先给出 2–4 步计划，再逐步调用工具；结束后由服务端生成研究反思（失败、空结果、缺来源、图片不确定），并导出包含计划、结论、反思、工具记录、图表数据和来源的 Markdown 简报。最近一次研究会保存在本机浏览器，可用「继续上次」恢复
 7. 向量模型可与对话模型分开配置：可用 SiliconFlow `https://api.siliconflow.cn/v1` + `BAAI/bge-m3`（免费档，需实名认证），或智谱 `https://open.bigmodel.cn/api/paas/v4` + `embedding-3`（需单独开通 Embedding 资源包）；切换后点知识库面板「重建向量」，再用 `node scripts/rag-eval.mjs` 跑检索评测
+8. 运行指标：`GET /api/ai/metrics` 返回对话数、模型调用耗时、工具成功率、视觉与文献检索次数，不含问题正文和 Key，可直接作为参赛材料的量化证据
 
-AI 代理没有 npm 依赖；相似分子索引已生成在 `data/similarity/`，可用 `pipeline/build-molecule-similarity.py` 重建。内置知识库种子在 `data/kb-seed/`（随仓库提交），运行时正文和向量存在本机 `data/kb/`，已在 `.gitignore` 中忽略。详见 [`ai/README.md`](ai/README.md) 和 [`data/kb-seed/README.md`](data/kb-seed/README.md)。
+AI 代理没有 npm 依赖；相似分子索引已生成在 `data/similarity/`，可用 `pipeline/build-molecule-similarity.py` 重建。内置知识库种子在 `data/kb-seed/`（随仓库提交），运行时正文和向量存在本机 `data/kb/`，已在 `.gitignore` 中忽略。详见 [`ai/README.md`](ai/README.md)、[`docs/AI-ARCHITECTURE.md`](docs/AI-ARCHITECTURE.md) 和 [`data/kb-seed/README.md`](data/kb-seed/README.md)。
 
 ### 方式 B：只预览前端
 
@@ -225,10 +263,13 @@ start.sh                    一键启动（站点 + 领养 + AI）
 - Node.js 零依赖 HTTP：静态站、`/api` 代理、领养服务
 - Python + RDKit：LOTUS 数据清洗与压缩分片
 
-## 许可与致谢
+## 原创性与许可
 
-- **LOTUS** 数据：CC0，<https://lotus.naturalproducts.net/>；请同时引用其论文与数据快照。
-- **RDKit.js / RDKit**：BSD 许可，见 `vendor/rdkit/README.md`。
-- **Three.js**：MIT 许可。
-- 站点徽标为本项目定制图形，仅用于本站标识；页面与加载动画中的徽标来自同一素材。
+- 本项目为独立开发的 Web 应用与 AI 分析系统：界面、场景、AI 工具层、研究任务流程、RAG 管线和文档均为原创。
+- 站点徽标、加载动画和世界树造型自制或程序化生成，不包含其他学校、机构或商业品牌标识。
+- 代码以 **MIT License** 发布，见 [`LICENSE`](LICENSE)。
+- **LOTUS** 数据：CC0；请同时引用其论文与数据快照。
+- **RDKit.js / RDKit**：BSD 3-Clause，见 `vendor/rdkit/README.md`。
+- **Three.js**：MIT；**MediaPipe Tasks Vision**：Apache 2.0。
+- 第三方数据、软件与参考论文的完整声明见 [`NOTICE.md`](NOTICE.md)。
 - 本项目不提供医学、药学或用药建议。

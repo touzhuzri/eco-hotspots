@@ -1,4 +1,4 @@
-# 世界树 · AI 分析代理（Step 1）
+# 世界树 · AI 分析代理
 
 这个目录提供 **局域网/本机 AI 代理**，站点通过 `/api/ai/*` 同源访问，浏览器不接触 API Key。
 
@@ -166,12 +166,30 @@ AI_KB_LOCAL_DIM=768
 
 ## 5.2 多模态识图
 
-架构是“视觉模型看图，文本模型推理”：
+架构是“视觉模型只抽取候选，服务端做确定性核验，文本模型组织结论”：
 
 1. 前端上传 PNG / JPEG / WebP / GIF（单张 ≤ 8MB，最多 2 张），以 base64 data URL 提交；
-2. 服务端调用视觉模型，只让它描述图片中确实可见的内容（主体、文字、结构式骨架/官能团、图表坐标轴与趋势），并明确要求“不确定就说不确定”；
-3. 描述作为【图片识别结果（视觉模型，仅供参考）】附在用户消息里，再交给主模型做推理；
-4. 主模型可以继续调用 `query_molecules` / `find_similar` / `explain` 核对，回答里区分“图片看到的内容”和“LOTUS 核实的内容”。
+2. 服务端要求视觉模型只输出一个合法 JSON：
+
+```json
+{
+  "image_type": "plant | structure | chart | photo | other",
+  "subject": "一句话主体",
+  "family_candidates": [{ "name": "Fabaceae", "confidence": 0.0, "reason": "可见依据" }],
+  "molecule_candidates": [{ "name": "quercetin", "confidence": 0.0, "reason": "结构/文字依据" }],
+  "structure_features": ["黄酮骨架", "多个酚羟基"],
+  "visible_text": "图片中可读出的文字",
+  "uncertain": ["无法确认的点"],
+  "overall_confidence": 0.0
+}
+```
+
+3. 服务端把 JSON 通过 SSE `vision` 事件推给前端卡片，并自动执行确定性核验：
+   - 分子候选 `confidence ≥ 0.3` → `query_molecules`（按名称）→ 命中后 `find_similar` → SSE `scene` 定位；
+   - 科属候选 `confidence ≥ 0.35` → `query_molecules`（按 family 聚分类）→ SSE `chart` 分布图；
+   - 核验结果作为【图片结构化结果与系统自动核验】附回模型上下文；
+4. 主模型只能基于工具结果组织回答，必须区分“图片候选”和“LOTUS 核实”，并写出 `uncertain` 中的不确定项；
+5. 视觉模型不按 JSON 返回时，退回自由文本描述，不阻断聊天；图片中的文字只作为图片内容，不作为指令执行。
 
 配置有两种方式（任选其一）：
 
@@ -206,10 +224,14 @@ POST /api/ai/vision-test
 
 在 AI 坞输入框旁点「研究」，或在能力 chips 里点「研究任务」，请求会带 `mode: "research"`：
 
-1. 服务端先让规划器输出 2–4 步 JSON 计划，通过 SSE `plan` 事件下发；
+1. 服务端先让规划器输出 2–4 步 JSON 计划（图片会作为结构化摘要传入规划器），通过 SSE `plan` 事件下发；
 2. 计划作为约束交给执行模型，工具调用时通过 SSE `step` 事件更新每一步状态；
-3. 回答结束后，前端出现「导出研究简报」，可下载包含问题、计划、结论、工具记录、图表和来源的 Markdown；
-4. 回答过程中可以点「■」停止本轮请求。
+3. 回答结束后，服务端根据工具记录做规则反思，通过 SSE `reflection` 下发：
+   - 工具失败、空结果、缺少 LOTUS 工具、缺少论文/网站/知识库来源、图片存在不确定项；
+   - 输出「局限 + 下一步」，前端出现「按建议继续」按钮；
+4. 前端出现「导出研究简报」，可下载包含问题、计划、结论、研究反思、工具记录、图表数据、图像结构化和来源（DOI/URL/《文件名》第 N 段）的 Markdown；
+5. 最近一次研究保存到浏览器 `localStorage`，标题栏「继续上次」可恢复问题、计划、结论、来源和反思；
+6. 回答过程中可以点「■」停止：前端 abort 请求，服务端通过 `res.on("close")` 中止上游模型调用和后续工具轮次。
 
 规划器失败时自动使用本地兜底计划，不影响正常回答。`mode` 不传或传 `chat` 时保持原来的单轮/多轮工具对话。
 
@@ -233,13 +255,37 @@ POST /api/ai/vision-test
 ```bash
 node scripts/rag-eval.mjs
 # AI_EVAL_BASE=http://127.0.0.1:5173 AI_EVAL_LIMIT=5 node scripts/rag-eval.mjs
+
+# 回答级引用评测（会调用模型，默认 8 题）
+AI_EVAL_CHAT=1 AI_EVAL_CHAT_LIMIT=8 node scripts/citation-eval.mjs
 ```
 
-评测集在 `data/kb-eval/questions.json`，输出 Hit@4、MRR、关键词命中率。基线结果见 `docs/rag-eval.md`。
+评测集在 `data/kb-eval/questions.json`（30 题，覆盖 LOTUS 卡片、论文、权威网站、数据局限性），输出 Hit@4、MRR、KW@4 和 Cite@4（前 4 条是否包含期望 DOI/URL/文档名）。回答级评测额外检查回答是否带期望引用标识，以及局限类问题是否明确说“不提供 / 不能”。基线结果见 [`docs/rag-eval.md`](../docs/rag-eval.md)。
 
-## 6. 当前 Step 1 能力
+## 5.5 运行指标
+
+`GET /api/ai/metrics` 返回内存态指标（重启清零），不含问题正文、图片内容和 Key：
+
+```json
+{
+  "chat": { "requests": 12, "completed": 11, "aborted": 1, "errors": 0, "inflight": 0 },
+  "model": { "calls": 37, "errors": 0, "retries": 1, "avgLatencyMs": 2140, "maxLatencyMs": 8900 },
+  "tools": { "calls": 28, "errors": 2, "successRate": 0.929, "byName": { "query_molecules": { "calls": 9 } } },
+  "vision": { "calls": 2, "errors": 0 },
+  "papers": { "searches": 3 }
+}
+```
+
+用途：
+
+- 证明工具调用成功率、模型平均耗时、停止按钮确实中止了请求（`chat.aborted`）；
+- 作为参赛材料的量化证据，配合 [`docs/PERFORMANCE.md`](../docs/PERFORMANCE.md) 的测量方法；
+- `scripts/metrics.mjs` 可直接打印一份快照。
+
+## 6. 接口与工具
 
 - `/api/ai/health`：服务状态、是否配置 Key、相似索引是否加载
+- `/api/ai/metrics`：对话 / 模型 / 工具 / 视觉 / 文献检索的运行指标
 - `/api/ai/config` GET/POST：读取/保存 provider、Base URL、模型、Key（Key 不回传）
 - `/api/ai/test`：用当前配置发一条最小请求
 - `/api/ai/chat`：SSE 流式对话 + 工具调用 + 附件正文
@@ -251,6 +297,8 @@ node scripts/rag-eval.mjs
 - `/api/ai/kb/reembed`：用当前向量配置重建全部文档向量
 - `/api/ai/embed-test`：测试向量接口连通性和维度
 - `/api/ai/similar?inchikey=...`：直接测试相似分子
+- `/api/ai/papers?q=...&source=auto`：直接检索论文题录，不需要模型 Key
+- `/api/ai/paper-sources`：列出可用的文献数据源和能力/限制
 
 工具：
 
@@ -260,13 +308,21 @@ node scripts/rag-eval.mjs
 - `scene_action`：返回镜头/高亮动作（Step 2 接 TreeScene）
 - `explain`：返回用于引用的 LOTUS 元数据
 - `web_search`：公开网页联网搜索（每轮最多 3 次）
+- `search_papers`：学术文献检索（每轮最多 3 次）。OpenAlex/Crossref/Europe PMC 走公开 API；Nature 用 ISSN 过滤；知网/万方/WoS 没有公开检索 API，只返回官网入口和 OpenAlex 公开替代结果，不抓取需要登录的受限全文。
 - `search_knowledge`：检索用户上传的知识库段落（每轮最多 3 次）
 
 无 Key 时 `/api/ai/chat` 会返回**本地演示回答**（真实查询 LOTUS + 图表），方便先联调界面。
 
 ## 7. 下一步
 
-1. 评测集：查询理解准确率、工具选择正确率、引用正确性
+1. 把回答级引用评测从默认 8 题扩到全部 30 题，并记录工具选择正确率
 2. 扫描版 PDF OCR（需要额外依赖，当前不做）
 3. 附件多轮追问：把附件正文保留在当前会话，而不是只随第一轮发送
 4. 知识库重排（rerank）与按文档过滤检索
+5. 把平台抓取到的模型/工具耗时写入结构化日志，做长期趋势
+
+架构与演示材料：
+
+- [`docs/AI-ARCHITECTURE.md`](../docs/AI-ARCHITECTURE.md)
+- [`docs/DEMO-SCRIPTS.md`](../docs/DEMO-SCRIPTS.md)
+- [`docs/PERFORMANCE.md`](../docs/PERFORMANCE.md)
