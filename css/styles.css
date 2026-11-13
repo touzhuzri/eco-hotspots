@@ -4855,6 +4855,20 @@ body.ui-intro .ai-dock { display: none; }
   font-size: 0.56rem;
   line-height: 1.4;
 }
+.ai-hero-tip {
+  margin: 8px 0 0;
+  color: #6f8a7c;
+  font-size: 0.56rem;
+  line-height: 1.5;
+}
+.ai-intro-guide {
+  margin: 4px 0 10px;
+  line-height: 1.7;
+}
+.ai-intro-guide b {
+  color: #b9e8c8;
+  font-weight: 600;
+}
 @media (max-width: 760px) {
   .ai-hero-tasks { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ai-hero h2 { font-size: 0.94rem; }

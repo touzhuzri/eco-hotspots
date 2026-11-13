@@ -79,15 +79,17 @@ const CAPABILITIES = [
   {
     label: "自然语言查询",
     prompt: "找出分子量 300 到 500、来自菊科的天然产物",
+    title: "例如：分子量 300–500、来自菊科的天然产物",
   },
   {
     label: "自动图表",
     prompt: "找出生物碱类分子，按来源科分布并画图",
+    title: "例如：生物碱按来源科分布并画图",
   },
   {
     label: "结构相似分子",
     prompt: "找和当前选中分子相似的分子",
-    title: "先在世界树里选中一颗分子",
+    title: "例如：和槲皮素相近的结构；先在世界树里选中一颗星",
   },
   {
     label: "识图",
@@ -107,16 +109,17 @@ const CAPABILITIES = [
   {
     label: "带出处解释",
     prompt: "解释黄酮类分子的来源和分类，并注明 LOTUS 出处",
+    title: "例如：黄酮类的来源和分类，并注明 LOTUS 出处",
   },
   {
     label: "论文 / DOI 检索",
     prompt: "检索槲皮素 quercetin 近五年的论文，给出标题、期刊、年份和 DOI",
-    title: "OpenAlex / Crossref / Europe PMC；知网、万方、Nature、WoS 提供检索入口",
+    title: "例如：quercetin 近五年论文 + DOI；OpenAlex / Crossref / Europe PMC，知网/万方/Nature/WoS 给检索入口",
   },
   {
     label: "研究任务",
     research: true,
-    title: "多步规划、工具执行，并生成可导出的研究简报",
+    title: "例如：比较黄酮和生物碱的科属分布，生成可导出的研究简报",
   },
 ];
 
@@ -252,21 +255,22 @@ export function mountAiDock(el, { scene } = {}) {
               <h2>从 22.7 万条 LOTUS 结构开始</h2>
               <p>查数据、读论文、识图、分析表格，最后导出可核对的研究简报。</p>
               <div class="ai-hero-tasks">
-                <button type="button" data-ai-suggest="找出黄酮类分子，按来源科分布并画图">
-                  <b>查数据</b><span>黄酮类按科分布</span>
+                <button type="button" data-ai-suggest="哪个科的黄酮最多？按来源科分布画图，并带我去看。">
+                  <b>查数据</b><span>例如：哪个科的黄酮最多？</span>
                 </button>
-                <button type="button" data-ai-suggest="检索槲皮素 quercetin 近五年的论文，给出标题、期刊、年份和 DOI">
-                  <b>读论文</b><span>检索 DOI 与期刊</span>
+                <button type="button" data-ai-suggest="检索槲皮素 quercetin 近五年的论文，优先 Nature，给出标题、期刊、年份和 DOI。">
+                  <b>读论文</b><span>例如：quercetin 近五年论文 + DOI</span>
                 </button>
                 <button type="button" data-ai-image="1">
-                  <b>识图</b><span>结构式 / 植物照片</span>
+                  <b>识图</b><span>例如：这张结构式是什么分子？</span>
                 </button>
                 <button type="button" data-ai-upload="1">
-                  <b>分析表格</b><span>CSV / Excel 统计</span>
+                  <b>分析表格</b><span>例如：按科统计这张 CSV</span>
                 </button>
               </div>
+              <p class="ai-hero-tip">点任务卡会直接填入示例问题；识图和表格会先让你选文件。</p>
             </div>
-            <p>你好，我是世界树 AI 分析助手。你可以直接用中文提问，我会先查 LOTUS 数据，再给你结果、图表和出处。</p>
+            <p class="ai-intro-guide">我可以帮你做四类事：<b>查数据</b>（LOTUS 统计、图表、3D 定位）、<b>读论文</b>（题录、DOI、期刊）、<b>识图</b>（结构式 / 植物 / 图表）、<b>分析表格</b>（CSV / Excel 分组统计）。每个数字都会先查工具，再给你出处。</p>
             <div class="ai-capabilities">
               ${CAPABILITIES.map(
                 (c) =>
@@ -552,6 +556,17 @@ export function mountAiDock(el, { scene } = {}) {
     input.placeholder = image
       ? "问点什么：例如「这是什么分子？」"
       : "问点什么：例如「总结这份文件的要点」";
+    // 选好文件后直接给一条可执行的示例问题（不覆盖用户已输入的内容）
+    if (!input.value.trim()) {
+      const name = String(file.name || "").toLowerCase();
+      if (image) {
+        input.value =
+          "这张图片是什么？请识别可能的分子或科属，并查 LOTUS 核对，说明不确定性。";
+      } else if (/\.(csv|tsv|xlsx)$/.test(name)) {
+        input.value = "统计这张表格里每个科有多少条，并画图。";
+      }
+      if (input.value) input.dispatchEvent(new Event("input"));
+    }
     const seq = ++parseSeq;
     currentFile = file;
     currentParsed = null;

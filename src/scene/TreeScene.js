@@ -5944,7 +5944,7 @@ export function mountTreeScene(rootEl) {
           duration: 4.2,
           gesture: "wave",
           expression: "happy",
-          text: "我帮你打开它。先从任务卡里选一个，或者直接问我。",
+          text: "我帮你打开它。比如问「哪个科的黄酮最多」，或上传一张结构式让我查 LOTUS。",
         },
       ],
       {
