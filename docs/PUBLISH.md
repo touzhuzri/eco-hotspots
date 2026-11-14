@@ -1,12 +1,15 @@
 # 公开发布清单
 
-本文用于把项目发布到公开仓库（GitHub / Gitee）。当前仓库只有本地 `upstream` 指向旧目录，**没有公开远端**；`gh` CLI 未安装。发布前请逐项确认。
+本文用于把项目发布到公开仓库（GitHub / Gitee）。公开远端已配置为
+<https://github.com/touzhuzri/eco-hotspots>（Public）。发布前请逐项确认。
 
-## 0. 当前状态（2026-11-13）
+## 0. 当前状态（2026-11-14）
 
-- `main` 已合并到最新提交 `dd947c6`，包含多模态、研究反思、表格分析、服务端会话、公网防护、导览和穿梭群星。
-- 尚未创建公开远端，也没有打 tag。
-- 发布前还需要：团队信息、仓库地址、在线演示 URL 确认；建议打 tag `v0.2.0-competition`。
+- `main` 已合并到最新提交 `41bab21`，包含多模态、研究反思、表格分析、服务端会话、
+  公网防护、导览、穿梭群星、Agent 任务级评测与 mock 端到端测试。
+- 公开仓库已推送，`main` 为默认分支；功能分支均已合并。
+- 技术文档已生成：`docs/technical-report.pdf`（18 页）；环境配置见 `docs/ENVIRONMENT.md`。
+- 尚未打 tag；在线演示 URL 待补充。建议打 tag `v0.2.0-competition`。
 
 ### 需要团队提供的信息
 
@@ -80,6 +83,9 @@ gh repo create <仓库名> --public --source . --remote origin --push
 
 | 文件 | 说明 |
 | --- | --- |
+| `docs/technical-report.pdf` | 参赛技术文档（18 页） |
+| `docs/ENVIRONMENT.md` | 环境变量与依赖清单 |
+| `docs/COMPETITION-CHECKLIST.md` | 参赛要求逐项对照 |
 | `docs/AI-ARCHITECTURE.md` | AI 架构与三条主流程 |
 | `docs/DEMO-SCRIPTS.md` | 2–3 分钟演示脚本 |
 | `docs/PERFORMANCE.md` | 指标口径与实测表 |

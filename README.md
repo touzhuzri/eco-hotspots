@@ -60,6 +60,30 @@
 
 ---
 
+## 技术架构
+
+```text
+浏览器（WebGL 世界树 + AI 分析坞）
+        │  同源 /api
+        ▼
+静态站 :SITE_PORT（唯一公开端口）
+        ├── /api/claim ──→ 领养服务 :8788 ──→ claims.jsonl
+        └── /api/ai    ──→ AI 服务 :8790
+                              ├── LOTUS 分片 / 相似度索引
+                              ├── 知识库 RAG（bge-m3 + BM25）
+                              ├── 对话 / 视觉 / 向量模型
+                              └── OpenAlex / Crossref / Europe PMC
+```
+
+- **前端**：原生 ES Modules + Three.js + RDKit.js，无构建步骤；按 InChIKey 前缀分片加载 LOTUS 数据。
+- **服务**：静态站、领养、AI 均为零依赖 Node 服务；内部端口只绑定 `127.0.0.1`。
+- **AI**：模型通过 OpenAI 兼容接口调用；11 个服务端工具负责数据查询、表格统计、文献检索、识图与场景动作；复杂问题走“计划—执行—反思—简报”。
+- **证据**：数字走 LOTUS，文档给《文件名》第 N 段，论文给 DOI，网站给 URL；资料与 LOTUS 冲突时生成核对卡片。
+
+完整说明见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)、[`docs/AI-ARCHITECTURE.md`](docs/AI-ARCHITECTURE.md)、[`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md) 和参赛技术文档 [`docs/technical-report.pdf`](docs/technical-report.pdf)（18 页）。
+
+---
+
 ## 特性
 
 - **AI 分析坞**：数据查询、图表、3D 定位、RAG 引用、论文检索、识图、研究任务与研究简报，全部通过工具和来源约束。
@@ -282,6 +306,14 @@ start.sh                    一键启动（站点 + 领养 + AI）
 - 单位：华中农业大学 · 化学学院 · 应用化学专业（大三）
 - 指导老师：无
 - 作品名称：世界之树
+
+## 参赛材料
+
+- [`docs/technical-report.pdf`](docs/technical-report.pdf)：技术文档（18 页，含架构、AI 方案、实现、测试、创新点）
+- [`docs/TECHNICAL-REPORT.md`](docs/TECHNICAL-REPORT.md)：技术文档章节索引与重新生成方式
+- [`docs/COMPETITION-CHECKLIST.md`](docs/COMPETITION-CHECKLIST.md)：代码仓库与技术文档要求逐项对照
+- [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md)：环境变量、依赖与配置优先级
+- [`docs/DEMO-SCRIPTS.md`](docs/DEMO-SCRIPTS.md)：演示视频脚本
 
 ## 原创性与许可
 

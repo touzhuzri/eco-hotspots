@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>世界之树 · 技术文档</title>
+<style>
+  @page { size: A4; margin: 19mm 16mm 17mm 16mm; }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body {
+    margin: 0;
+    font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", "Source Han Sans SC", sans-serif;
+    font-size: 10.2pt;
+    line-height: 1.66;
+    color: #17211d;
+  }
+  p { margin: 0 0 5.5px; text-align: justify; }
+  h2, h3, h4 { color: #123f33; page-break-after: avoid; }
+  h2 {
+    font-size: 18pt; margin: 0 0 10px; padding: 0 0 7px;
+    border-bottom: 2px solid #2f8f6f; letter-spacing: .5px;
+  }
+  h2 .no { color: #2f8f6f; margin-right: 8px; }
+  h3 { font-size: 12.4pt; margin: 10px 0 5px; padding-left: 8px; border-left: 4px solid #7fc3a9; }
+  h4 { font-size: 10.8pt; margin: 10px 0 4px; color: #1f5d4a; }
+  ul, ol { margin: 4px 0 8px; padding-left: 1.45em; }
+  li { margin: 0 0 2.5px; }
+  strong { color: #0f4a3a; }
+  code {
+    font-family: "Cascadia Mono", "Consolas", "Courier New", monospace;
+    font-size: 8.9pt; background: #eef4f1; color: #1d5b49;
+    padding: 0.5px 3px; border-radius: 3px; overflow-wrap: anywhere;
+  }
+  pre {
+    font-family: "Cascadia Mono", "Consolas", monospace; font-size: 8.4pt;
+    background: #f5f8f6; border: 1px solid #dce8e2; border-left: 3px solid #2f8f6f;
+    padding: 7px 9px; margin: 6px 0 9px; white-space: pre-wrap; line-height: 1.5;
+    page-break-inside: avoid; overflow-wrap: anywhere;
+  }
+  table { width: 100%; border-collapse: collapse; margin: 6px 0 10px; font-size: 8.9pt; table-layout: fixed; }
+  tr { page-break-inside: avoid; }
+  th { background: #e9f4ef; color: #123f33; font-weight: 700; text-align: left; }
+  th, td { border: 1px solid #cfded7; padding: 3.2px 5px; vertical-align: top; line-height: 1.46; overflow-wrap: anywhere; word-break: break-word; }
+  tr:nth-child(even) td { background: #fafcfb; }
+  .small { font-size: 8.7pt; color: #52655d; }
+  .center { text-align: center; }
+  .callout {
+    background: #f1f8f4; border: 1px solid #cfe6db; border-left: 4px solid #2f8f6f;
+    padding: 7px 10px; margin: 7px 0 10px; page-break-inside: avoid;
+  }
+  .callout b { color: #14513f; }
+  .warn { background: #fff8ec; border-color: #f0d9ab; border-left-color: #d79a2b; }
+  .figure { margin: 7px 0 11px; page-break-inside: avoid; }
+  .figure svg { width: 100%; height: auto; display: block; }
+  figcaption { font-size: 8.4pt; color: #5a6e65; text-align: center; margin-top: 3px; }
+  .major { page-break-before: always; }
+  .no-break { page-break-inside: avoid; }
+  .two-col { display: flex; gap: 12px; }
+  .two-col > div { flex: 1; }
+  .tag {
+    display: inline-block; font-size: 8.2pt; color: #1f6f56; background: #e8f5ee;
+    border: 1px solid #c9e6d9; border-radius: 10px; padding: 0 7px; margin: 0 4px 4px 0;
+  }
+  .kpi { display: flex; gap: 8px; margin: 5px 0 7px; }
+  .kpi div {
+    flex: 1; background: #f2f8f5; border: 1px solid #d7e9e0; border-radius: 5px;
+    padding: 5px 8px; text-align: center;
+  }
+  .kpi b { display: block; font-size: 15pt; color: #1f6f56; line-height: 1.2; }
+  .kpi span { font-size: 8.3pt; color: #5a6e65; }
+
+  /* 封面 */
+  .cover {
+    page-break-after: always; height: 259mm; margin: -6mm -4mm 0;
+    padding: 22mm 18mm 16mm; color: #eaf6f0;
+    background: linear-gradient(150deg, #0c2f26 0%, #14513f 48%, #1f6f56 100%);
+    position: relative; overflow: hidden;
+  }
+  .cover .ring { position: absolute; border: 1px solid rgba(160, 220, 190, .22); border-radius: 50%; }
+  .cover .ring.a { width: 150mm; height: 150mm; right: -45mm; top: -40mm; }
+  .cover .ring.b { width: 105mm; height: 105mm; right: -22mm; top: -18mm; }
+  .cover .ring.c { width: 190mm; height: 190mm; left: -75mm; bottom: -100mm; }
+  .cover .eyebrow { font-size: 10pt; letter-spacing: 4px; color: #9fd7bf; margin-bottom: 10mm; }
+  .cover h1 { font-size: 40pt; line-height: 1.12; margin: 0 0 4mm; letter-spacing: 3px; color: #fff; }
+  .cover .sub { font-size: 17pt; line-height: 1.45; color: #c8e9da; margin: 0 0 4mm; }
+  .cover .desc { font-size: 10.5pt; line-height: 1.8; color: #b6ddcb; max-width: 118mm; margin-bottom: 10mm; }
+  .cover .meta { font-size: 9.6pt; line-height: 1.9; color: #d9eee5; border-top: 1px solid rgba(200, 233, 218, .35); padding-top: 6mm; width: 108mm; }
+  .cover .meta b { color: #fff; font-weight: 600; }
+  .cover .foot { position: absolute; left: 18mm; bottom: 13mm; font-size: 8.5pt; color: #8fc4ad; letter-spacing: 1px; }
+  .cover svg { position: absolute; right: 10mm; bottom: 12mm; width: 92mm; opacity: .95; }
+
+  /* 目录 */
+  .toc { page-break-after: always; padding-top: 6mm; }
+  .toc h2 { border-bottom-color: #2f8f6f; }
+  .toc ol { list-style: none; padding: 0; margin: 5mm 0 0; }
+  .toc > ol > li { margin: 0 0 2.4mm; border-bottom: 1px dashed #d6e5de; padding-bottom: 1mm; }
+  .toc .t { font-size: 10.8pt; font-weight: 700; color: #14513f; }
+  .toc .d { font-size: 8.5pt; color: #60746b; margin-top: 0.5mm; }
+  .toc .num { display: inline-block; width: 10mm; color: #2f8f6f; }
+
+  .abstract { background: #f4faf7; border: 1px solid #d5e9df; padding: 10px 13px; margin: 6px 0 12px; }
+  .abstract p { margin-bottom: 5px; }
+  .keywords { font-size: 9pt; color: #52655d; }
+  .footer { display: none; }
+  .ref { font-size: 8.5pt; color: #5b6f66; }
+  .ref li { margin-bottom: 3px; }
+</style>
+</head>
+<body>
+
+<!-- ================= 封面 ================= -->
+<div class="cover">
+  <div class="ring a"></div><div class="ring b"></div><div class="ring c"></div>
+  <div class="eyebrow">COMPETITION TECHNICAL REPORT · 2026</div>
+  <h1>世界之树</h1>
+  <p class="sub">天然产物 AI 分析与可视化平台</p>
+  <p class="desc">
+    一棵由 LOTUS 227,319 个天然产物结构组成的 WebGL 星点世界树，
+    加上一个能查数据、读论文、识图片、做研究、并把每个数字落到出处的 AI 分析坞。
+  </p>
+  <div class="meta">
+    <div><b>作品名称：</b>世界之树</div>
+    <div><b>团队：</b>刘同字（队长）、刘峥</div>
+    <div><b>单位：</b>华中农业大学 · 化学学院 · 应用化学</div>
+    <div><b>代码仓库：</b>github.com/touzhuzri/eco-hotspots</div>
+    <div><b>版本：</b>v1.0 · 对应提交 41bab21</div>
+    <div><b>日期：</b>2026 年 11 月</div>
+  </div>
+  <div class="foot">仅作科学传播与教学演示 · 不构成任何用药建议</div>
+  <svg viewBox="0 0 320 300" aria-hidden="true">
+    <defs>
+      <radialGradient id="cg" cx="50%" cy="35%" r="65%">
+        <stop offset="0%" stop-color="#b9ecd4" stop-opacity=".95"/>
+        <stop offset="100%" stop-color="#3a9b77" stop-opacity=".25"/>
+      </radialGradient>
+    </defs>
+    <circle cx="160" cy="120" r="86" fill="url(#cg)" opacity=".55"/>
+    <g stroke="#a9e0c8" stroke-width="1.1" opacity=".65">
+      <path d="M160 250 L160 185 M160 205 L128 170 M160 198 L194 166 M160 186 L138 150 M160 186 L184 148"/>
+      <path d="M128 170 L112 148 M128 170 L140 142 M194 166 L210 144 M194 166 L180 138"/>
+    </g>
+    <g fill="#eafff5">
+      <circle cx="160" cy="96" r="2.4"/><circle cx="132" cy="86" r="2"/><circle cx="188" cy="84" r="2.2"/>
+      <circle cx="146" cy="64" r="1.8"/><circle cx="176" cy="60" r="2"/><circle cx="112" cy="108" r="1.8"/>
+      <circle cx="208" cy="106" r="2"/><circle cx="120" cy="132" r="1.7"/><circle cx="200" cy="132" r="1.8"/>
+      <circle cx="160" cy="46" r="1.7"/><circle cx="142" cy="112" r="1.6"/><circle cx="180" cy="112" r="1.6"/>
+      <circle cx="98" cy="122" r="1.5"/><circle cx="222" cy="122" r="1.6"/>
+    </g>
+    <g stroke="#6fc6a3" stroke-width="1" opacity=".45">
+      <circle cx="160" cy="120" r="72" fill="none"/><circle cx="160" cy="120" r="54" fill="none"/>
+    </g>
+  </svg>
+</div>
+
+<!-- ================= 摘要 + 目录 ================= -->
+<div class="toc" id="toc">
+  <h2>摘要</h2>
+  <div class="abstract">
+    <p><b>问题。</b>天然产物数据规模大、字段多，结构、来源物种、化学分类与文献分散在数据库、论文和网页中。通用对话模型可以“讲知识”，却无法可靠回答“LOTUS 里菊科有多少条黄酮”，也容易把记忆中的数字当成事实。</p>
+    <p><b>方案。</b>「世界之树」把 LOTUS frozen 260413（227,319 条结构）组织成一棵可交互的 WebGL 星点树，并在站内提供 AI 分析坞：模型不直接背数字，而是通过 11 个服务端工具查询 LOTUS、检索知识库、读取论文、分析表格、识图、驱动 3D 场景；复杂问题走“计划—执行—反思—简报”的研究流程；资料中的数量断言用确定性工具与 LOTUS 核对。</p>
+    <p><b>结果。</b>Agent 任务级评测 18/18 通过，RAG 30 题 Hit@4 30/30、MRR 1.000、Cite@4 30/30，端到端测试 20/20，单元测试 15/15。系统为静态前端 + 零依赖 Node 服务，单端口部署，可在普通云主机或校园服务器运行。</p>
+  </div>
+  <p class="keywords"><b>关键词：</b>天然产物；LOTUS；WebGL；AI Agent；工具调用；RAG；多模态；可核对溯源</p>
+
+  <h2 style="margin-top:9mm">目录</h2>
+  <ol>
+    <li><span class="t"><span class="num">01</span>项目概述</span><div class="d">背景、定位、主要工作与成果概览</div></li>
+    <li><span class="t"><span class="num">02</span>需求分析</span><div class="d">用户角色、功能需求、非功能需求与约束取舍</div></li>
+    <li><span class="t"><span class="num">03</span>系统架构设计</span><div class="d">总体架构、前后端分层、数据层、关键数据流与技术选型</div></li>
+    <li><span class="t"><span class="num">04</span>AI 技术方案</span><div class="d">模型选型、集成方式、工具层、RAG、多模态、研究任务、优化与安全</div></li>
+    <li><span class="t"><span class="num">05</span>核心功能实现</span><div class="d">星点世界树、场景交互、AI 分析坞、文件与表格、分子详情</div></li>
+    <li><span class="t"><span class="num">06</span>测试与部署</span><div class="d">测试体系、实测结果、部署形态、安全验证与复现</div></li>
+    <li><span class="t"><span class="num">07</span>创新点说明</span><div class="d">技术创新点与应用创新点</div></li>
+    <li><span class="t"><span class="num">08</span>总结与展望</span><div class="d">总结、不足与后续方向</div></li>
+    <li><span class="t"><span class="num">A</span>附录</span><div class="d">环境变量、依赖清单、仓库与复现命令</div></li>
+  </ol>
+  <div class="footer"><span>世界之树 · 技术文档</span><span>华中农业大学 · 刘同字 / 刘峥</span></div>
+</div>
+
+<!-- ================= 1 ================= -->
+<section class="major" id="s1">
+  <h2><span class="no">01</span>项目概述</h2>
+
+  <h3>1.1 背景与问题</h3>
+  <p>LOTUS 是当前规模最大的开放天然产物结构数据库之一。本项目使用 frozen 260413 快照，包含 <b>227,319</b> 条结构记录、<b>1,602</b> 个物种节点和 <b>2,038</b> 个精选分子。对教学与科普来说，它既是宝贵的数据底座，也带来三个现实问题：</p>
+  <ul>
+    <li><b>看不见。</b>表格与字段适合检索，不适合建立“某类分子在哪些科里出现”的直觉；传统 2D 列表也很难展示 20 万级结构的整体分布。</li>
+    <li><b>查不动。</b>要回答“哪个科的黄酮最多”，需要在分类、来源科、分子式、质量等多个字段间组合筛选，普通访客难以完成。</li>
+    <li><b>信不过。</b>通用大模型可以流畅地讲天然产物，却无法访问本地 LOTUS，容易把记忆中的数字当成事实；论文、网页与数据库口径不一致时，也缺少可核对的机制。</li>
+  </ul>
+
+  <h3>1.2 作品定位</h3>
+  <p>「世界之树」不是把聊天框贴到网页上，而是把 <b>数据查询、空间可视化、文献阅读与多模态识别</b> 组织成一个可核对的分析工作台：</p>
+  <ul>
+    <li><b>空间层：</b>每一颗星是一个天然产物结构；树冠、树干、根际与土壤对应来源生物的生态位置，支持缩放、检索、点亮、连线与领养。</li>
+    <li><b>分析层：</b>AI 分析坞直接调用服务端工具查询 LOTUS、聚合统计、画图、找相似分子、驱动 3D 场景；数字不经过模型记忆。</li>
+    <li><b>证据层：</b>RAG 回答标注《文件名》第 N 段、DOI 或 URL；资料中的数量断言用 <code>verify_claim</code> 与 LOTUS 做确定性比较，冲突时生成核对卡片。</li>
+    <li><b>研究层：</b>复杂问题按“计划—执行—反思—简报”推进，反思由服务端规则生成，不额外消耗模型额度。</li>
+  </ul>
+
+  <h3>1.3 主要工作</h3>
+  <table>
+    <tr><th style="width:22%">模块</th><th>完成内容</th><th style="width:27%">关键证据</th></tr>
+    <tr><td>WebGL 星点树</td><td>227,319 个结构点、生态层位、二十四节气环、季节花瓣、土壤烷烃、闲置钟表、第一人称漫游</td><td><code>src/scene/TreeScene.js</code></td></tr>
+    <tr><td>数据与服务</td><td>LOTUS 元数据分片、3D 构象分片、相似度索引、领养账本、静态站与同源代理</td><td><code>data/</code>、<code>deploy/</code></td></tr>
+    <tr><td>AI Agent</td><td>11 个工具、流式工具循环、计划/反思、会话恢复、停止传播、供应商重试与降级</td><td><code>ai/server.mjs</code></td></tr>
+    <tr><td>RAG 与多模态</td><td>PDF/Word/Excel/PPT/CSV 解析、混合检索、引用契约、图片结构化与自动 LOTUS 核验</td><td><code>ai/rag.mjs</code>、<code>ai/files.mjs</code></td></tr>
+    <tr><td>评测与部署</td><td>单元、端到端、Agent 任务级、RAG 检索、引用评测；单端口部署包与公网防护</td><td><code>scripts/</code>、<code>docs/</code></td></tr>
+  </table>
+
+  <h3>1.4 成果概览</h3>
+  <div class="kpi">
+    <div><b>227,319</b><span>LOTUS 结构记录</span></div>
+    <div><b>11</b><span>AI 工具</span></div>
+    <div><b>18/18</b><span>Agent 任务通过</span></div>
+    <div><b>30/30</b><span>RAG Hit@4</span></div>
+  </div>
+  <p>公开仓库同时提供环境变量模板、部署手册与可复现测试命令；代码 MIT，LOTUS 数据 CC0，第三方声明见 <code>NOTICE.md</code>。</p>
+</section>
+
+<!-- ================= 2 ================= -->
+<section class="major" id="s2">
+  <h2><span class="no">02</span>需求分析</h2>
+
+  <h3>2.1 用户角色与典型任务</h3>
+  <table>
+    <tr><th style="width:18%">角色</th><th>核心诉求</th><th style="width:42%">典型任务</th></tr>
+    <tr><td>学生</td><td>建立天然产物分类与来源的直观认识；快速查到可引用的数字</td><td>“哪个科的黄酮最多？”“找 5 个分子量 300–500 的生物碱，并说明来源科。”</td></tr>
+    <tr><td>教师 / 科普讲解者</td><td>课堂演示、可视化的结构分布、可回溯的讲解材料</td><td>带看世界树、穿梭群星、展示某类分子的生态分布、导出研究简报</td></tr>
+    <tr><td>科研入门者</td><td>把本地资料、论文与 LOTUS 统计放在同一处核对</td><td>上传 CSV 做分组统计；核对论文中的数量断言；检索 DOI 与开放获取链接</td></tr>
+    <tr><td>评委 / 公众</td><td>无需安装、打开即用；能判断系统是否真的“查了数据”</td><td>直接提问、查看工具轨迹与来源卡片、点击分子 chip 定位到 3D 场景</td></tr>
+  </table>
+
+  <h3>2.2 功能需求</h3>
+  <table>
+    <tr><th style="width:11%">编号</th><th style="width:23%">需求</th><th>验收标准</th></tr>
+    <tr><td>FR1</td><td>海量结构可视化</td><td>首屏可加载 22 万级结构点；支持旋转、缩放、拾取、筛选与定位；不依赖外网 CDN。</td></tr>
+    <tr><td>FR2</td><td>结构化数据查询</td><td>按分类、来源科、质量、XLogP、名称等条件筛选；返回数量、样本与分组统计。</td></tr>
+    <tr><td>FR3</td><td>AI 工具调用</td><td>数字必须先经工具；回答包含工具轨迹与来源；工具失败时如实说明。</td></tr>
+    <tr><td>FR4</td><td>RAG 溯源</td><td>支持系统知识库与用户文档；回答标注《文件名》第 N 段、DOI 或 URL。</td></tr>
+    <tr><td>FR5</td><td>多模态识图</td><td>图片先输出结构化 JSON（主体、科属/分子候选、置信度、不确定项），再自动查 LOTUS。</td></tr>
+    <tr><td>FR6</td><td>研究任务</td><td>生成 2–4 步计划；执行工具；输出规则反思与可导出的 Markdown 简报；可继续上次。</td></tr>
+    <tr><td>FR7</td><td>表格与文件</td><td>CSV/Excel 分组统计由服务端确定性计算；PDF/Word/PPT 可解析为可检索文本。</td></tr>
+    <tr><td>FR8</td><td>公网演示防护</td><td>Key 不出服务端；配置写操作可锁定；按 IP 限流与并发控制；停止能中止上游。</td></tr>
+  </table>
+
+  <h3>2.3 非功能需求</h3>
+  <ul>
+    <li><b>准确性：</b>数量、分类与来源科以 LOTUS 工具为准；论文与网页只解释背景。</li>
+    <li><b>可核对性：</b>关键结论落到工具结果、知识库段落、DOI 或 URL；冲突时给出双方数值与差异。</li>
+    <li><b>可部署性：</b>不依赖数据库、Redis、消息队列或前端构建链；一个公开端口即可运行。</li>
+    <li><b>安全性：</b>Key 仅存服务端；静态服务屏蔽 <code>ai/</code>、<code>.run</code>、<code>logs</code>、<code>claims.jsonl</code>。</li>
+    <li><b>可维护性：</b>数据分片、相似索引、知识库向量可独立重建；UI 只依赖 <code>engineApi</code> 与同源 <code>/api</code>。</li>
+    <li><b>可访问性：</b>桌面双栏 + 移动端抽屉；支持键盘操作与减少动画偏好。</li>
+  </ul>
+
+  <h3>2.4 约束与取舍</h3>
+  <table>
+    <tr><th style="width:26%">约束</th><th>处理方式</th></tr>
+    <tr><td>不能抓取知网 / 万方 / WoS 全文</td><td>只返回官方检索入口与 OpenAlex 替代结果，并标注来源边界。</td></tr>
+    <tr><td>不能提供医学 / 用药建议</td><td>提示词与前端文案双重限制；涉及剂量、疗效时注明“仅作科学传播”。</td></tr>
+    <tr><td>模型限流、超时或不支持参数</td><td>退避重试；不识别 <code>thinking</code> 时去掉；向量不可用回退 local-hash + BM25。</td></tr>
+    <tr><td>公网额度与空白服务器</td><td>配置锁、令牌、密码、限流与并发；零依赖 Node，提供含离线 Node 的部署包。</td></tr>
+  </table>
+</section>
+
+<!-- ================= 3 ================= -->
+<section class="major" id="s3">
+  <h2><span class="no">03</span>系统架构设计</h2>
+
+  <h3>3.1 总体架构</h3>
+  <div class="figure">
+    <svg viewBox="0 0 1000 430" role="img" aria-label="总体架构图">
+      <defs>
+        <marker id="ar" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L6,3 L0,6 Z" fill="#4f8f78"/>
+        </marker>
+      </defs>
+      <style>
+        .bx { fill:#f2f8f5; stroke:#9ccbb8; stroke-width:1.4; rx:6; }
+        .bx2 { fill:#e6f3ec; stroke:#5ca98b; stroke-width:1.6; rx:6; }
+        .bx3 { fill:#fff8e9; stroke:#d9b46b; stroke-width:1.4; rx:6; }
+        .tx { font-family:"Microsoft YaHei",sans-serif; font-size:13px; fill:#173f33; }
+        .ts { font-family:"Microsoft YaHei",sans-serif; font-size:11px; fill:#597067; }
+        .ln { stroke:#4f8f78; stroke-width:1.5; fill:none; marker-end:url(#ar); }
+        .ln2 { stroke:#b08a45; stroke-width:1.4; fill:none; stroke-dasharray:5 4; marker-end:url(#ar); }
+      </style>
+      <rect x="360" y="14" width="280" height="58" class="bx2"/>
+      <text x="500" y="39" text-anchor="middle" class="tx">浏览器 / 评委</text>
+      <text x="500" y="58" text-anchor="middle" class="ts">WebGL 世界树 · AI 分析坞 · 详情卡</text>
+
+      <rect x="330" y="110" width="340" height="66" class="bx2"/>
+      <text x="500" y="137" text-anchor="middle" class="tx">静态站 :SITE_PORT（唯一公开端口）</text>
+      <text x="500" y="158" text-anchor="middle" class="ts">静态文件 · 同源 /api 代理 · 安全路径屏蔽</text>
+
+      <rect x="120" y="222" width="250" height="62" class="bx"/>
+      <text x="245" y="247" text-anchor="middle" class="tx">领养服务 :8788</text>
+      <text x="245" y="267" text-anchor="middle" class="ts">claims.jsonl · visitor 哈希</text>
+
+      <rect x="630" y="222" width="250" height="62" class="bx"/>
+      <text x="755" y="247" text-anchor="middle" class="tx">AI 服务 :8790</text>
+      <text x="755" y="267" text-anchor="middle" class="ts">Agent · RAG · 多模态 · 文献</text>
+
+      <rect x="70" y="335" width="180" height="62" class="bx3"/>
+      <text x="160" y="359" text-anchor="middle" class="tx">LOTUS 数据分片</text>
+      <text x="160" y="379" text-anchor="middle" class="ts">元数据 / 3D / 相似度</text>
+
+      <rect x="275" y="335" width="180" height="62" class="bx3"/>
+      <text x="365" y="359" text-anchor="middle" class="tx">知识库 RAG</text>
+      <text x="365" y="379" text-anchor="middle" class="ts">bge-m3 · BM25 · 引用</text>
+
+      <rect x="480" y="335" width="180" height="62" class="bx3"/>
+      <text x="570" y="359" text-anchor="middle" class="tx">外部文献 API</text>
+      <text x="570" y="379" text-anchor="middle" class="ts">OpenAlex / Crossref / PMC</text>
+
+      <rect x="685" y="335" width="245" height="62" class="bx3"/>
+      <text x="807" y="359" text-anchor="middle" class="tx">对话 / 视觉 / 向量模型</text>
+      <text x="807" y="379" text-anchor="middle" class="ts">OpenAI 兼容接口 · Key 只在服务端</text>
+
+      <path d="M500 72 L500 110" class="ln"/>
+      <path d="M410 176 L245 222" class="ln"/>
+      <path d="M590 176 L755 222" class="ln"/>
+      <path d="M700 284 L660 335" class="ln"/>
+      <path d="M640 284 L570 335" class="ln"/>
+      <path d="M620 284 L420 335" class="ln"/>
+      <path d="M780 284 L820 335" class="ln"/>
+      <path d="M245 284 L200 335" class="ln"/>
+    </svg>
+    <figcaption>图 3-1 总体架构：一个公开端口，内部服务只绑定本机；AI 服务统一管理模型 Key、工具与数据。</figcaption>
+  </div>
+
+  <p>系统采用“<b>静态前端 + 零依赖 Node 服务 + AI 分析代理</b>”的形态。浏览器只访问一个公开端口；静态站负责文件分发、同源代理与安全路径屏蔽；领养服务与 AI 服务默认只绑定 <code>127.0.0.1</code>。这样既避免了跨域与多端口暴露，也让 Key、日志与账本留在服务端。</p>
+
+  <h3>3.2 前端分层</h3>
+  <table>
+    <tr><th style="width:20%">层</th><th>职责</th><th style="width:34%">代表文件</th></tr>
+    <tr><td>页面与样式</td><td>加载页、双栏布局、移动端抽屉、主题变量</td><td><code>index.html</code>、<code>css/styles.css</code></td></tr>
+    <tr><td>启动与装配</td><td>加载数据、创建场景、挂载 UI、恢复 permalink</td><td><code>src/main.js</code></td></tr>
+    <tr><td>场景层</td><td>Points + ShaderMaterial、相机、拾取、节气环、花瓣、钟表、导览</td><td><code>src/scene/TreeScene.js</code></td></tr>
+    <tr><td>引擎层</td><td>LOTUS 元数据分片、facets、3D 构象、相似度、领养客户端</td><td><code>src/engine/</code></td></tr>
+    <tr><td>界面层</td><td>详情卡、探索栏、搜索、对比、AI 分析坞、设置面板</td><td><code>src/ui/</code></td></tr>
+    <tr><td>状态与契约</td><td>store、permalink、字段契约与空值约定</td><td><code>src/state/</code>、<code>src/data/contract.js</code></td></tr>
+  </table>
+  <p>前端不引入 React/Vue 等框架，也不使用打包器：原生 ES Modules 直接运行，减少构建与部署成本。稳定契约是 <code>engineApi</code> 与同源 <code>/api</code>，因此 UI 可以替换，数据与 AI 工具不必跟着改。</p>
+
+  <h3>3.3 服务分层</h3>
+  <table>
+    <tr><th style="width:24%">服务</th><th>职责</th><th style="width:30%">安全边界</th></tr>
+    <tr><td><code>deploy/site-server.mjs</code></td><td>静态文件、MIME、缓存、<code>/api/ai</code> 与 <code>/api/claim</code> 同源代理、SSE 透传</td><td>屏蔽 <code>ai/</code>、<code>.git</code>、<code>.run</code>、<code>logs</code>、<code>claims.jsonl</code>；把真实 IP 以 <code>x-real-ip</code> 传给 AI</td></tr>
+    <tr><td><code>deploy/claim-server.mjs</code></td><td>一个 InChIKey 只能领养一次；支持改名；事件写入 JSONL</td><td>只保存 key、显示名、时间与 visitor token 的 SHA-256；不存 IP/UA/邮箱</td></tr>
+    <tr><td><code>ai/server.mjs</code></td><td>对话、工具循环、研究任务、RAG、视觉、文献、SSE、限流、配置</td><td>Key 只在服务端；配置写操作可锁；按 IP 限流与并发；中止传播到上游</td></tr>
+  </table>
+
+  <h3>3.4 数据层</h3>
+  <ul>
+    <li><b>LOTUS 元数据：</b>按 InChIKey 前两位分片压缩在 <code>data/molecules/</code>，按需加载；facets 与合法 InChIKey 集合单独存放。</li>
+    <li><b>3D 构象：</b><code>data/molecules3d/</code> 存放由 LOTUS SMILES 经 RDKit ETKDG 离线生成的构象，约 202,665 个；缺失时回退 2D 结构式。</li>
+    <li><b>相似度索引：</b>Morgan 指纹（r=2，1024 bit）+ Tanimoto，已在 <code>data/similarity/</code> 生成，可由 pipeline 重建。</li>
+    <li><b>知识库：</b><code>data/kb-seed/</code> 是随仓库提交的种子（LOTUS 卡片、论文、权威网站）；运行时正文与向量在 <code>data/kb/</code>，不进入 Git。</li>
+    <li><b>状态：</b><code>claims.jsonl</code> 是唯一必须长期保留的领养账本；<code>.run/</code> 与 <code>logs/</code> 可随时删除。</li>
+  </ul>
+
+  <h3>3.5 关键数据流</h3>
+  <div class="two-col">
+    <div>
+      <h4>点开一颗分子</h4>
+      <pre>click star
+  → engineApi.getMolecule(inchikey)
+  → store.select
+  → DetailPanel 渲染 LOTUS 字段
+  → RDKit 按需渲染 2D
+  → permalink.sync()</pre>
+    </div>
+    <div>
+      <h4>AI 问答</h4>
+      <pre>AI Dock
+  → POST /api/ai/chat (SSE)
+  → RAG 自动召回 + 工具循环
+  → status / tool / source / chart
+  → delta 流式回答
+  → done / 会话保存</pre>
+    </div>
+  </div>
+  <p>研究任务在此基础上增加 <code>plan</code> 与 <code>reflection</code> 事件；多模态增加 <code>vision</code> 事件；数据核对增加 <code>conflict</code> 事件。前端按事件类型渲染轨迹，不依赖模型输出格式的稳定性。</p>
+
+  <h3>3.6 技术选型</h3>
+  <table>
+    <tr><th style="width:19%">技术</th><th>选择理由</th><th style="width:29%">替代方案与取舍</th></tr>
+    <tr><td>Three.js r169</td><td>成熟的 WebGL 封装；Points + 自定义 Shader 可承载 22 万级点云；本地 vendor，无 CDN</td><td>原生 WebGL 更轻但开发成本高；Babylon.js 体积更大</td></tr>
+    <tr><td>RDKit.js + WASM</td><td>浏览器内解析 SMILES、渲染 2D 结构；与 Python 侧 RDKit 生态一致</td><td>服务端渲染会增加请求与部署复杂度</td></tr>
+    <tr><td>原生 ES Modules</td><td>无构建步骤，部署即源码；便于评委审阅与二次开发</td><td>React/Vue 生态更丰富，但引入打包链与依赖体积</td></tr>
+    <tr><td>零依赖 Node</td><td>只用内置 <code>http</code>/<code>fetch</code>/<code>fs</code>；无 npm 依赖，离线可部署</td><td>Express/Fastify 开发更快，但增加供应链与安装成本</td></tr>
+    <tr><td>SSE 流式</td><td>单向事件流适合 token、工具轨迹、图表与状态；实现简单，易被代理透传</td><td>WebSocket 双向能力更强，但部署与心跳更复杂</td></tr>
+    <tr><td>BAAI/bge-m3</td><td>中英多语、1024 维、检索质量好；SiliconFlow 免费档可用；与对话模型解耦</td><td>local-hash 可离线但语义弱；OpenAI embedding 成本更高</td></tr>
+    <tr><td>OpenAI 兼容协议</td><td>DeepSeek / GLM / MiMo / Ollama 均可接入；流式与 function calling 统一</td><td>各家 SDK 绑定会降低可替换性</td></tr>
+  </table>
+</section>
+
+<!-- ================= 4 ================= -->
+<section class="major" id="s4">
+  <h2><span class="no">04</span>AI 技术方案</h2>
+
+  <h3>4.1 设计目标与原则</h3>
+  <p>AI 部分的目标不是“让模型多说话”，而是让它在天然产物数据上<b>说得准、查得到、可核对、能部署</b>。由此确定五条原则：</p>
+  <ol>
+    <li><b>工具优先（tool-first）：</b>数量、分类、来源科等事实必须由服务端工具返回；模型只负责理解问题、选择工具与组织解释。</li>
+    <li><b>证据契约：</b>LOTUS、论文、网站、用户文档使用不同引用格式；冲突时以 LOTUS 为准并说明差异。</li>
+    <li><b>可降级：</b>向量不可用退回 local-hash + BM25；视觉不可用退回文本；模型繁忙时重试并提示。</li>
+    <li><b>供应商无关：</b>统一 OpenAI 兼容接口，模型与向量服务可独立替换。</li>
+    <li><b>秘密留在服务端：</b>浏览器只发同源请求，不接触 Key、系统提示词或原始账本。</li>
+  </ol>
+
+  <h3>4.2 模型选型理由</h3>
+  <table>
+    <tr><th style="width:16%">角色</th><th style="width:24%">选型</th><th>理由</th></tr>
+    <tr><td>对话 / 工具调用</td><td>DeepSeek V4 Pro（OpenAI 兼容）</td><td>中文理解与函数调用稳定；长上下文适合多轮工具结果；成本适合公网演示；可一键切换 GLM / MiMo / 自定义。</td></tr>
+    <tr><td>视觉结构化</td><td>DeepSeek Flash（可换 GLM-4V / 本地 Ollama）</td><td>只需输出固定 JSON，不需要复杂推理；低延迟、低成本；与对话模型分开配置，避免互相牵制。</td></tr>
+    <tr><td>向量检索</td><td>BAAI/bge-m3（1024 维）</td><td>中英多语、语义检索质量高；SiliconFlow 免费档可用；与对话服务商解耦，换模型不影响 RAG。</td></tr>
+    <tr><td>Agent 框架</td><td>自研轻量工具循环（不引入 LangChain / LlamaIndex）</td><td>链路透明、可审计、零 npm 依赖；工具 schema、SSE 事件、限流与中止都可控；部署体积小。</td></tr>
+  </table>
+  <p>不使用通用 Agent 框架的原因很实际：本项目的工具是强领域、强确定性的（LOTUS 查询、表格统计、DOI 检索），不需要复杂的多 Agent 编排；自研循环可以把“数字必须来自工具”“来源必须标注”等约束写进系统提示词与执行器，而不是依赖框架的默认行为。</p>
+
+  <h3>4.3 集成方式</h3>
+  <div class="figure">
+    <svg viewBox="0 0 1000 300" role="img" aria-label="AI 集成与工具循环">
+      <defs>
+        <marker id="ar2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L6,3 L0,6 Z" fill="#4f8f78"/>
+        </marker>
+      </defs>
+      <style>
+        .b { fill:#f2f8f5; stroke:#9ccbb8; stroke-width:1.4; rx:6; }
+        .ba { fill:#e6f3ec; stroke:#5ca98b; stroke-width:1.6; rx:6; }
+        .t { font-family:"Microsoft YaHei",sans-serif; font-size:12.5px; fill:#173f33; }
+        .s { font-family:"Microsoft YaHei",sans-serif; font-size:10.5px; fill:#597067; }
+        .a { stroke:#4f8f78; stroke-width:1.5; fill:none; marker-end:url(#ar2); }
+      </style>
+      <rect x="20" y="112" width="150" height="64" class="ba"/>
+      <text x="95" y="138" text-anchor="middle" class="t">浏览器</text>
+      <text x="95" y="157" text-anchor="middle" class="s">AI 分析坞</text>
+
+      <rect x="220" y="112" width="170" height="64" class="b"/>
+      <text x="305" y="138" text-anchor="middle" class="t">同源代理</text>
+      <text x="305" y="157" text-anchor="middle" class="s">/api/ai · SSE 透传</text>
+
+      <rect x="440" y="98" width="210" height="92" class="ba"/>
+      <text x="545" y="124" text-anchor="middle" class="t">AI 服务</text>
+      <text x="545" y="144" text-anchor="middle" class="s">系统提示词 · 工具循环</text>
+      <text x="545" y="162" text-anchor="middle" class="s">RAG · 限流 · 中止 · 会话</text>
+      <text x="545" y="180" text-anchor="middle" class="s">配置优先级：env &gt; runtime</text>
+
+      <rect x="700" y="52" width="270" height="58" class="b"/>
+      <text x="835" y="76" text-anchor="middle" class="t">对话 / 视觉模型</text>
+      <text x="835" y="95" text-anchor="middle" class="s">OpenAI 兼容 /chat/completions</text>
+
+      <rect x="700" y="130" width="270" height="58" class="b"/>
+      <text x="835" y="154" text-anchor="middle" class="t">工具执行器</text>
+      <text x="835" y="173" text-anchor="middle" class="s">LOTUS · 表格 · 文献 · 场景</text>
+
+      <rect x="700" y="208" width="270" height="58" class="b"/>
+      <text x="835" y="232" text-anchor="middle" class="t">证据与数据</text>
+      <text x="835" y="251" text-anchor="middle" class="s">LOTUS 分片 · KB · OpenAlex</text>
+
+      <path d="M170 144 L220 144" class="a"/>
+      <path d="M390 144 L440 144" class="a"/>
+      <path d="M650 132 L700 88" class="a"/>
+      <path d="M650 152 L700 158" class="a"/>
+      <path d="M650 172 L700 232" class="a"/>
+      <path d="M700 100 L650 118" class="a" opacity=".65"/>
+      <path d="M700 166 L650 160" class="a" opacity=".65"/>
+      <path d="M700 230 L650 180" class="a" opacity=".65"/>
+      <text x="500" y="288" text-anchor="middle" class="s">SSE：status · plan · step · tool · source · chart · vision · conflict · reflection · delta · done</text>
+    </svg>
+    <figcaption>图 4-1 AI 集成方式：浏览器只访问同源代理；服务端负责模型调用、工具执行与事件编排。</figcaption>
+  </div>
+  <p>前端通过 <code>fetch</code> 读取 SSE，按事件类型增量渲染。模型请求统一为 <code>POST /chat/completions</code>（流式 + function calling）；服务端把工具结果作为 <code>tool</code> 消息追加回上下文，直到模型给出最终回答或达到轮次上限。配置读取顺序为：<code>ai/.env</code> → 运行时 <code>.run/ai-config.json</code> → 内置默认值；公开部署可开启 <code>AI_CONFIG_LOCK</code>，前端只能读 <code>hasKey</code>，不能读 Key。</p>
+
+  <h3>4.4 工具层设计</h3>
+  <table>
+    <tr><th style="width:20%">工具</th><th>作用</th><th style="width:28%">确定性来源</th></tr>
+    <tr><td><code>query_molecules</code></td><td>按分类、科、质量、XLogP、名称筛选并聚合；支持按科/分类分组</td><td>LOTUS 分片索引</td></tr>
+    <tr><td><code>find_similar</code></td><td>Morgan 指纹 + Tanimoto 找相似结构</td><td>预构建相似度索引</td></tr>
+    <tr><td><code>explain</code></td><td>返回指定 InChIKey 的名称、分类、来源科、分子式、质量、XLogP</td><td>LOTUS 元数据</td></tr>
+    <tr><td><code>render_chart</code></td><td>柱状 / 条形 / treemap / 散点图数据</td><td>查询结果</td></tr>
+    <tr><td><code>scene_action</code></td><td>建议聚焦、高亮或回总览；由用户点击确认后执行</td><td>场景 API</td></tr>
+    <tr><td><code>web_search</code></td><td>公开网页补充；仅在超出本地数据或用户明确要求时使用</td><td>公开搜索</td></tr>
+    <tr><td><code>search_papers</code></td><td>OpenAlex / Crossref / Europe PMC / Nature；知网、万方、WoS 返回官方入口</td><td>公开学术 API</td></tr>
+    <tr><td><code>list_research_sources</code></td><td>列出可用文献源、类型与限制</td><td>静态源表</td></tr>
+    <tr><td><code>search_knowledge</code></td><td>检索系统知识库与用户上传文档，返回段落与出处</td><td>RAG 混合检索</td></tr>
+    <tr><td><code>verify_claim</code></td><td>把资料中的数量断言与 LOTUS 实际统计比较，返回差值、百分比与判定</td><td>LOTUS 查询 + 规则比较</td></tr>
+    <tr><td><code>analyze_table</code></td><td>对本轮 CSV/Excel 做分组计数、求和、平均、最小/最大，并自动出图</td><td>服务端确定性统计</td></tr>
+  </table>
+  <p class="small">工具共 11 个。系统提示词为每个工具写明使用条件、参数与引用要求；模型不能编造工具结果，工具失败时必须在回答中说明缺口。</p>
+
+  <h3>4.5 Agent 循环与执行控制</h3>
+  <ul>
+    <li><b>循环：</b>理解问题 → 选择工具（可并行）→ 执行 → 把结果回填 → 继续或总结。默认最多 16 轮，可通过 <code>AI_MAX_TOOL_ROUNDS</code> 调整。</li>
+    <li><b>约束：</b>每轮限制 <code>web_search</code> 与 <code>search_papers</code> 的调用次数，避免反复换关键词消耗额度；工具失败时给出可执行下一步。</li>
+    <li><b>重试：</b>对 429 / 5xx / “访问量过大”做指数退避；个别服务商不识别 <code>thinking</code> 参数时自动去掉并记住，避免整轮失败。</li>
+    <li><b>中止：</b>用户点停止 → 浏览器 <code>AbortController</code> 断开 → 服务端监听 <code>res.on("close")</code> → 中止上游模型请求与工具执行，避免后台继续烧额度。</li>
+    <li><b>可观测：</b><code>/api/ai/metrics</code> 记录对话数、模型调用耗时、工具成功率、视觉与文献检索次数，不记录问题正文与 Key。</li>
+  </ul>
+
+  <h3>4.6 RAG 检索与引用</h3>
+  <div class="figure">
+    <svg viewBox="0 0 1000 235" role="img" aria-label="RAG 检索流程">
+      <defs>
+        <marker id="ar3" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L6,3 L0,6 Z" fill="#4f8f78"/>
+        </marker>
+      </defs>
+      <style>
+        .r { fill:#f2f8f5; stroke:#9ccbb8; stroke-width:1.4; rx:6; }
+        .ra { fill:#e6f3ec; stroke:#5ca98b; stroke-width:1.6; rx:6; }
+        .t3 { font-family:"Microsoft YaHei",sans-serif; font-size:12px; fill:#173f33; }
+        .s3 { font-family:"Microsoft YaHei",sans-serif; font-size:10px; fill:#597067; }
+        .l3 { stroke:#4f8f78; stroke-width:1.4; fill:none; marker-end:url(#ar3); }
+        .d3 { stroke:#b08a45; stroke-width:1.3; fill:none; stroke-dasharray:5 4; marker-end:url(#ar3); }
+      </style>
+      <rect x="15" y="78" width="135" height="62" class="ra"/>
+      <text x="82" y="103" text-anchor="middle" class="t3">用户问题</text>
+      <text x="82" y="122" text-anchor="middle" class="s3">自然语言 / 追问</text>
+
+      <rect x="190" y="24" width="185" height="58" class="r"/>
+      <text x="282" y="47" text-anchor="middle" class="t3">查询向量</text>
+      <text x="282" y="65" text-anchor="middle" class="s3">bge-m3 1024 维</text>
+
+      <rect x="190" y="136" width="185" height="58" class="r"/>
+      <text x="282" y="159" text-anchor="middle" class="t3">词法检索</text>
+      <text x="282" y="177" text-anchor="middle" class="s3">BM25 中文二元组</text>
+
+      <rect x="415" y="78" width="175" height="62" class="ra"/>
+      <text x="502" y="103" text-anchor="middle" class="t3">混合排序</text>
+      <text x="502" y="122" text-anchor="middle" class="s3">余弦 + 覆盖率 + 阈值</text>
+
+      <rect x="630" y="78" width="155" height="62" class="r"/>
+      <text x="707" y="103" text-anchor="middle" class="t3">Top-k 段落</text>
+      <text x="707" y="122" text-anchor="middle" class="s3">文件名 + 第 N 段</text>
+
+      <rect x="825" y="78" width="160" height="62" class="ra"/>
+      <text x="905" y="103" text-anchor="middle" class="t3">模型回答</text>
+      <text x="905" y="122" text-anchor="middle" class="s3">引用卡片 / DOI</text>
+
+      <rect x="415" y="168" width="370" height="48" class="r"/>
+      <text x="600" y="188" text-anchor="middle" class="t3">降级：local-hash（768 维）+ BM25</text>
+      <text x="600" y="205" text-anchor="middle" class="s3">向量服务不可用时不中断回答</text>
+
+      <path d="M150 100 L190 62" class="l3"/>
+      <path d="M150 118 L190 156" class="l3"/>
+      <path d="M375 53 L415 90" class="l3"/>
+      <path d="M375 165 L415 128" class="l3"/>
+      <path d="M590 109 L630 109" class="l3"/>
+      <path d="M785 109 L825 109" class="l3"/>
+      <path d="M502 140 L502 168" class="d3"/>
+    </svg>
+    <figcaption>图 4-2 RAG 混合检索：语义向量与 BM25 融合；向量不可用时自动降级，回答始终带引用。</figcaption>
+  </div>
+  <ul>
+    <li><b>解析：</b>支持 PDF、Word、Excel、PPT、CSV 与纯文本。PDF 处理间接 <code>/Filter</code>、Flate / ASCII85 / ASCIIHex / RunLength、对象流与 ToUnicode CMap；扫描版或加密 PDF 会返回明确原因。</li>
+    <li><b>切块：</b>默认每段 500 字、重叠 80 字，单文档最多 240 段；知识库最多 200 个文档（可配置）。</li>
+    <li><b>检索：</b>向量余弦与词法覆盖率融合，默认 <code>AI_KB_MIN_SCORE=0.32</code>；对话内自动召回使用略低阈值，避免漏掉长文档。</li>
+    <li><b>引用：</b>系统知识库与用户文档标注《文件名》第 N 段；论文标注第一作者、年份、期刊、DOI；网站标注站点名与 URL。</li>
+    <li><b>评测：</b>30 题覆盖 LOTUS 卡片、论文、权威网站与数据局限性；Hit@4、MRR、KW@4、Cite@4 全部可复现。</li>
+  </ul>
+
+  <h3>4.7 多模态：先结构化，再核验</h3>
+  <p>视觉模型不直接给结论，而是被要求输出固定 JSON：图片类型、主体、科属候选（含置信度与理由）、分子候选（含置信度与结构特征）、可见文字、不确定项与总体置信度。服务端随后：</p>
+  <ol>
+    <li>把结构化结果作为 <code>vision</code> 事件推给前端，先让用户看到“模型看到了什么”；</li>
+    <li>对达到置信度阈值的分子/科属候选自动调用 <code>query_molecules</code>，并对首个命中调用 <code>find_similar</code>；</li>
+    <li>根据命中结果生成分类分布图与场景定位；低置信度候选不自动查库；</li>
+    <li>把核验结果交回文本模型，要求明确写出不确定性与“仅凭图片无法确认”的边界。</li>
+  </ol>
+  <p>这样把“识图”拆成“抽取候选”和“数据核验”两段：前者可能出错，后者必须落到 LOTUS；即使视觉模型判断错，用户也能从工具轨迹看出哪一步没有命中。</p>
+
+  <h3>4.8 研究任务：计划—执行—反思—简报</h3>
+  <div class="figure">
+    <svg viewBox="0 0 1000 190" role="img" aria-label="研究任务流程">
+      <defs>
+        <marker id="ar4" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L6,3 L0,6 Z" fill="#4f8f78"/>
+        </marker>
+      </defs>
+      <style>
+        .q { fill:#f2f8f5; stroke:#9ccbb8; stroke-width:1.4; rx:6; }
+        .qa { fill:#e6f3ec; stroke:#5ca98b; stroke-width:1.6; rx:6; }
+        .t4 { font-family:"Microsoft YaHei",sans-serif; font-size:12px; fill:#173f33; }
+        .s4 { font-family:"Microsoft YaHei",sans-serif; font-size:10px; fill:#597067; }
+        .l4 { stroke:#4f8f78; stroke-width:1.5; fill:none; marker-end:url(#ar4); }
+        .d4 { stroke:#b08a45; stroke-width:1.3; fill:none; stroke-dasharray:5 4; marker-end:url(#ar4); }
+      </style>
+      <rect x="18" y="62" width="145" height="58" class="qa"/>
+      <text x="90" y="86" text-anchor="middle" class="t4">研究问题</text>
+      <text x="90" y="104" text-anchor="middle" class="s4">复杂 / 多步</text>
+
+      <rect x="195" y="62" width="145" height="58" class="q"/>
+      <text x="267" y="86" text-anchor="middle" class="t4">计划</text>
+      <text x="267" y="104" text-anchor="middle" class="s4">2–4 步 + 工具</text>
+
+      <rect x="372" y="62" width="145" height="58" class="q"/>
+      <text x="444" y="86" text-anchor="middle" class="t4">执行</text>
+      <text x="444" y="104" text-anchor="middle" class="s4">工具循环 / SSE</text>
+
+      <rect x="549" y="62" width="145" height="58" class="q"/>
+      <text x="621" y="86" text-anchor="middle" class="t4">反思</text>
+      <text x="621" y="104" text-anchor="middle" class="s4">规则检查 / 局限</text>
+
+      <rect x="726" y="62" width="145" height="58" class="qa"/>
+      <text x="798" y="86" text-anchor="middle" class="t4">简报</text>
+      <text x="798" y="104" text-anchor="middle" class="s4">Markdown / 会话</text>
+
+      <path d="M163 91 L195 91" class="l4"/>
+      <path d="M340 91 L372 91" class="l4"/>
+      <path d="M517 91 L549 91" class="l4"/>
+      <path d="M694 91 L726 91" class="l4"/>
+      <path d="M444 120 L444 150 L267 150 L267 120" class="d4"/>
+      <text x="355" y="166" text-anchor="middle" class="s4">工具结果不足 / 失败 → 调整下一步，不额外消耗反思模型调用</text>
+    </svg>
+    <figcaption>图 4-3 研究任务：计划是约束而非硬编码；反思由服务端规则生成，可继续执行或导出简报。</figcaption>
+  </div>
+  <ul>
+    <li><b>计划：</b>模型先输出目标与 2–4 个步骤（含建议工具），作为后续执行的约束；允许根据工具结果调整。</li>
+    <li><b>执行：</b>每个工具轮次通过 SSE 推送 <code>step</code> / <code>tool</code> / <code>chart</code> / <code>source</code>，用户能看到“查了什么、拿到什么”。</li>
+    <li><b>反思：</b>服务端检查工具失败、空结果、来源缺失、图片低置信度等条件，生成局限与下一步；不额外调用模型。</li>
+    <li><b>简报：</b>导出包含问题、计划、结论、反思、工具记录、图表数据、来源、数据核对与分子记录的 Markdown；最近一次研究同时保存在浏览器与服务端匿名会话。</li>
+  </ul>
+
+  <h3>4.9 数据核对与可点击溯源</h3>
+  <p>资料中经常出现“某科有 N 条”的断言，但论文口径、数据库版本与筛选条件可能不同。系统提供 <code>verify_claim</code>：模型从资料中抽取 <code>claimed</code> 数字与筛选条件，服务端查询 LOTUS 后由 <code>ai/verify.mjs</code> 做确定性比较，返回：</p>
+  <pre>{ claimed, actual, delta, percent, tolerance_pct, verdict }
+verdict = |percent| &lt;= tolerance_pct ? "consistent" : "conflict"</pre>
+  <p>当判定为冲突时，前端生成「数据核对」卡片，显示资料值、LOTUS 实际值、差异百分比与容差，并把结果写入研究简报。另一个细节是<b>分子 chip</b>：<code>query_molecules</code>、<code>find_similar</code>、<code>explain</code> 返回的分子会渲染为可点击标签，点击后收起对话、选中该分子并飞到 3D 场景，实现“回答 → 数据 → 空间”的闭环。</p>
+
+  <h3>4.10 优化策略</h3>
+  <table>
+    <tr><th style="width:20%">目标</th><th>策略</th><th style="width:32%">效果</th></tr>
+    <tr><td>减少幻觉</td><td>数字强制走工具；系统提示词规定数据源优先级与引用格式；冲突以 LOTUS 为准</td><td>Agent 任务工具选择与来源覆盖 18/18</td></tr>
+    <tr><td>降低延迟</td><td>SSE 流式；工具结果先推前端；分类分布自动出图；规则反思不调用模型</td><td>用户先看到轨迹与图表，再等最终总结</td></tr>
+    <tr><td>控制 token</td><td>RAG top-k 4–6、切块 500/80；工具结果裁剪；文献缓存 80 条；反思规则化</td><td>长文档不整篇进上下文</td></tr>
+    <tr><td>提高可用性</td><td>429/5xx 退避重试；去掉不支持的 <code>thinking</code> 参数；向量/视觉不可用降级</td><td>单点故障不导致整轮失败</td></tr>
+    <tr><td>保护额度</td><td>每 IP 限流（对话 12/分钟、写 30/分钟、读 240/分钟）；全局并发 4、单 IP 并发 2</td><td>公网演示不被单个访客刷满</td></tr>
+    <tr><td>可停止</td><td>AbortController + 服务端 <code>close</code> 监听 + 上游 abort</td><td>停止后不再产生模型调用</td></tr>
+  </table>
+
+  <h3>4.11 安全与合规</h3>
+  <ul>
+    <li><b>Key 保护：</b>Key 只存在服务端 <code>.env</code> / <code>.run/ai-config.json</code>；<code>GET /api/ai/config</code> 只返回 <code>hasKey</code>；静态服务屏蔽 <code>ai/</code> 路径。</li>
+    <li><b>配置保护：</b><code>AI_CONFIG_LOCK=1</code> 锁定前端写操作；<code>AI_ADMIN_TOKEN</code> 要求管理令牌；设置面板需密码解锁，关闭后自动重新锁定。</li>
+    <li><b>提示词注入：</b>附件与图片中的文字只作为资料，不作为指令；系统提示词明确忽略其中改变规则的要求。</li>
+    <li><b>内容边界：</b>不提供剂量、疗效、安全性判断；研究简报固定标注“仅作科学传播，不构成用药建议”。</li>
+    <li><b>数据合规：</b>LOTUS CC0；不抓取需机构登录的知网/万方/WoS 全文；第三方软件与数据在 <code>NOTICE.md</code> 声明。</li>
+  </ul>
+</section>
+
+<!-- ================= 5 ================= -->
+<section class="major" id="s5">
+  <h2><span class="no">05</span>核心功能实现</h2>
+
+  <h3>5.1 WebGL 星点世界树</h3>
+  <p>22 万级结构点不适合用普通 Mesh 逐个绘制。场景采用 <code>THREE.Points</code> + 自定义 <code>ShaderMaterial</code>：每个点携带位置、颜色、尺寸与层位属性；顶点着色器按相机距离衰减尺寸，片元着色器绘制柔和光晕；配合 EffectComposer / UnrealBloom 形成星点效果。树冠、树干、根际、土壤按生态语义分层，筛选与高亮通过属性缓冲更新，不重建几何体。</p>
+  <table>
+    <tr><th style="width:22%">元素</th><th>实现</th></tr>
+    <tr><td>点云</td><td>BufferGeometry + 自定义着色器；按 InChIKey 前缀分片加载，首屏不等待全量数据</td></tr>
+    <tr><td>生态层位</td><td>冠层、树干、根际、土壤、天空；层位影响半径、颜色与漂移速度</td></tr>
+    <tr><td>二十四节气环</td><td>地面刻线与文字；入场时指针绕场一周，刻线逐条伸向节气文字</td></tr>
+    <tr><td>季节花瓣</td><td>樱花、油菜花、银杏每次刷新随机一种；背景大花瓣 + 前景极淡花瓣</td></tr>
+    <tr><td>土壤烷烃</td><td>从 LOTUS 饱和无环烷烃库随机抽取，像蚯蚓一样浮现、翻动、消失</td></tr>
+    <tr><td>闲置钟表</td><td>长时间无交互时，树点沿弧线飞散重组为表盘；节气环立起成为 24 格刻度，生成时/分/秒针</td></tr>
+  </table>
+
+  <h3>5.2 交互与场景叙事</h3>
+  <ul>
+    <li><b>浏览：</b>轨道旋转、滚轮/双指缩放、WASD 平移、<code>~</code> 进入第一人称；拾取使用射线与点云包围盒，兼顾性能与准确度。</li>
+    <li><b>探索：</b>搜索、随机漫游、今日分子、类群/层位/化学分类/来源科筛选、附近分子、精选分子、收藏、对比、分享链接。</li>
+    <li><b>小助手导览：</b>每次进入询问是否带看；开始后用约 15 秒介绍世界树、左栏、右栏与 AI 研究台，讲完或点“跳过”都会打开 AI。</li>
+    <li><b>穿梭群星：</b>镜头贴近冠层星点再拉出，掠过树干与根际，最后回到全树；用相机路径与缓动营造“穿行”感。</li>
+    <li><b>详情与 3D：</b>选中分子后展示名称、分子式、质量、XLogP、环数、HBD/HBA、TPSA、分类、来源物种与 LOTUS 来源；待机卡可显示球棍模型，拖动旋转、滚轮缩放不退出场景。</li>
+  </ul>
+
+  <h3>5.3 AI 分析坞</h3>
+  <p>AI 分析坞是前端最复杂的组件（约 2,100 行）。它维护消息、计划、工具轨迹、来源、图表、冲突卡片、会话与导出状态，并把 SSE 事件映射为可读的界面：</p>
+  <table>
+    <tr><th style="width:20%">事件</th><th>界面表现</th></tr>
+    <tr><td><code>status</code></td><td>连接模型、重试、工具执行等等待提示</td></tr>
+    <tr><td><code>plan</code> / <code>step</code></td><td>研究计划卡片与步骤进度</td></tr>
+    <tr><td><code>tool</code></td><td>工具名、参数摘要、结果计数；失败时显示原因</td></tr>
+    <tr><td><code>source</code></td><td>《文件名》第 N 段、DOI、URL 引用卡片</td></tr>
+    <tr><td><code>chart</code></td><td>柱状 / treemap / 散点图</td></tr>
+    <tr><td><code>vision</code></td><td>图片结构化卡片：主体、候选、置信度、不确定项</td></tr>
+    <tr><td><code>conflict</code></td><td>资料值 vs LOTUS 实际值、差异百分比、容差</td></tr>
+    <tr><td><code>delta</code> / <code>done</code></td><td>流式回答与完成状态；可停止、可导出简报</td></tr>
+  </table>
+  <p>分子 chip 让回答中的分子可点击：点击后收起对话、选中分子、飞到详情卡；这让 AI 的文本结论与 3D 空间位置形成可验证的对应关系。</p>
+
+  <h3>5.4 文件、表格与 PDF</h3>
+  <ul>
+    <li><b>格式：</b>PDF、Word（docx）、Excel（xlsx）、PPT（pptx）、CSV/TSV、纯文本；前端限制体积，服务端再次校验。</li>
+    <li><b>PDF：</b>支持间接 <code>/Filter</code>、Flate / ASCII85 / ASCIIHex / RunLength、对象流与 ToUnicode CMap；对扫描版、加密、字体编码缺失分别返回可读原因，而不是笼统的“二进制文件”。</li>
+    <li><b>表格：</b><code>parseDelimited</code> 支持逗号/制表符/分号、引号、重复列名；上限 50,000 行 × 60 列；<code>analyze_table</code> 做分组计数、求和、平均、最小/最大，返回 <code>groups</code> 并自动生成柱状图。</li>
+    <li><b>边界：</b>Excel 只读第一个工作表；统计不经过模型手算；表格内容只用于本轮上下文，不作为长期知识库。</li>
+  </ul>
+
+  <h3>5.5 分子详情、结构式与领养</h3>
+  <ul>
+    <li><b>结构式：</b>按需加载 RDKit.js 与 WASM，在浏览器内解析 SMILES 并渲染暗色 2D 结构；不阻塞首屏。</li>
+    <li><b>3D 构象：</b>优先加载 <code>data/molecules3d/</code> 分片；缺失时回退 2D。3D 视口支持拖动旋转与滚轮缩放，点击视口外返回世界树。</li>
+    <li><b>领养：</b>一个 InChIKey 只能被领养一次；同一 visitor token 可领养多颗并改名；名字留空显示“神秘用户”；只保存 key、显示名、时间与 token 哈希，不保存 IP/UA/邮箱。</li>
+    <li><b>分享：</b>permalink 同步选中分子、筛选与相机状态；打开链接可恢复同一视角。</li>
+  </ul>
+
+  <h3>5.6 前端性能与可维护性</h3>
+  <ul>
+    <li><b>按需加载：</b>LOTUS 元数据与 3D 构象按 InChIKey 前缀分片，首屏只加载当前视野所需数据；RDKit 在首次打开结构式时加载。</li>
+    <li><b>无 CDN：</b>Three.js、RDKit、MediaPipe 均放在 <code>vendor/</code>，离线环境也能运行。</li>
+    <li><b>无构建：</b>源码即产物，减少打包配置与版本漂移；CSS 使用变量组织主题，便于统一调整。</li>
+    <li><b>契约稳定：</b>数据字段见 <code>src/data/contract.js</code>，用途字段允许 <code>null</code>；UI 不直接拼 LOTUS 过滤逻辑。</li>
+  </ul>
+</section>
+
+<!-- ================= 6 ================= -->
+<section class="major" id="s6">
+  <h2><span class="no">06</span>测试与部署</h2>
+
+  <h3>6.1 测试体系</h3>
+  <table>
+    <tr><th style="width:13%">层级</th><th>内容</th><th style="width:9%">规模</th><th style="width:35%">命令</th></tr>
+    <tr><td>单元测试</td><td>表格解析与统计、数量断言比较、PDF 文本提取</td><td>15 项</td><td><code>npm test</code></td></tr>
+    <tr><td>端到端</td><td>mock 模型下验证工具、研究计划/反思、视觉、表格、核对、会话、配置锁、限流、并发、中止</td><td>20 项</td><td><code>npm run test:e2e</code></td></tr>
+    <tr><td>Agent 任务级</td><td>真实模型下 18 条任务：LOTUS、论文、知识库、场景、联网、表格、核对、研究、安全边界</td><td>18 条</td><td><code>AGENT_EVAL=1 node scripts/agent-eval.mjs</code></td></tr>
+    <tr><td>RAG 检索</td><td>30 题覆盖 LOTUS 卡片、论文、权威网站、数据局限性；Hit@4 / MRR / KW@4 / Cite@4</td><td>30 题</td><td><code>node scripts/rag-eval.mjs</code></td></tr>
+    <tr><td>回答引用</td><td>检查回答是否包含期望 DOI/URL/文档名、关键词与局限说明（可选，调用模型）</td><td>8 题</td><td><code>AI_EVAL_CHAT=1 node scripts/citation-eval.mjs</code></td></tr>
+  </table>
+
+  <h3>6.2 实测结果</h3>
+  <h4>Agent 任务级评测（2026-11-13）</h4>
+  <table>
+    <tr><th>指标</th><th>结果</th><th>说明</th></tr>
+    <tr><td>任务通过</td><td><b>18/18（100%）</b></td><td>工具选择 + 关键词 + 研究计划/反思</td></tr>
+    <tr><td>工具选择</td><td>18/18（100%）</td><td>知识库自动召回计入来源命中</td></tr>
+    <tr><td>来源覆盖</td><td>18/18（100%）</td><td>LOTUS / 论文 / KB / web</td></tr>
+    <tr><td>局限说明（宽松）</td><td>3/3（100%）</td><td>不要求固定措辞</td></tr>
+    <tr><td>首字 / 总耗时</td><td>平均 11.22s · P50 7.68s · P90 23.86s</td><td>该服务商正文增量在流末尾集中到达，首字与总耗时接近</td></tr>
+  </table>
+
+  <h4>RAG 检索（2026-11-13，14 文档 / 26 片段）</h4>
+  <table>
+    <tr><th>指标</th><th>local-hash（768 维）</th><th>BAAI/bge-m3（1024 维）</th></tr>
+    <tr><td>Hit@4</td><td>30/30（100%）</td><td><b>30/30（100%）</b></td></tr>
+    <tr><td>MRR</td><td>0.983</td><td><b>1.000</b></td></tr>
+    <tr><td>KW@4</td><td>30/30（100%）</td><td>30/30（100%）</td></tr>
+    <tr><td>Cite@4</td><td>30/30（100%）</td><td>30/30（100%）</td></tr>
+  </table>
+
+  <h4>端到端与单元测试</h4>
+  <div class="kpi">
+    <div><b>20/20</b><span>端到端（mock 模型）</span></div>
+    <div><b>15/15</b><span>单元测试</span></div>
+    <div><b>0</b><span>真实 API 消耗</span></div>
+  </div>
+  <p class="small">端到端测试使用本地 mock OpenAI 服务，验证工程链路而非模型能力；Agent 评测使用真实模型，验证任务完成情况。两者分工明确，避免把 mock 结果误当成模型效果。</p>
+
+  <h3>6.3 部署形态</h3>
+  <ul>
+    <li><b>单端口：</b>对外只暴露站点端口（默认 5173，面板可用 <code>PORT</code>/<code>SERVER_PORT</code>）；领养 8788 与 AI 8790 只绑定本机。</li>
+    <li><b>启动：</b><code>./start.sh</code> 前台运行，适合 Docker/面板；<code>daemon</code>/<code>status</code>/<code>stop</code>/<code>restart</code> 用于运维。</li>
+    <li><b>运行时：</b>Node.js 18+（推荐 22.14.0，AI 要求 20.12+）；AI 服务零 npm 依赖。</li>
+    <li><b>部署包：</b>纯 AI 版约 139MB（站点 + 数据 + 知识库）；双版本包约 380MB，含离线 Node 运行时与旧无 AI 版。</li>
+    <li><b>反向代理：</b>Nginx / 宝塔需设置 <code>client_max_body_size 30m</code>、<code>proxy_buffering off</code>、<code>proxy_read_timeout 300s</code>，保证图片上传与 SSE 正常。</li>
+  </ul>
+
+  <h3>6.4 安全验证</h3>
+  <pre>GET /ai/.env                  → 404（静态服务屏蔽）
+POST /api/ai/config（未授权）  → 403（配置锁 / 管理令牌）
+连续写配置超过阈值             → 429（限流）
+单 IP 并发超过上限             → 429（并发控制）
+点击停止                       → mock 上游连接被中止（abort）</pre>
+  <p>部署包中的 <code>.env</code> 只保留非敏感默认值与空 Key；真实 Key 由部署者在服务器填写。<code>.gitignore</code> 排除 <code>.env</code>、<code>.run/</code>、<code>logs/</code>、<code>claims.jsonl</code> 与用户知识库正文。</p>
+
+  <h3>6.5 复现</h3>
+  <pre># 启动站点 + 领养 + AI
+./start.sh daemon
+
+# 单元测试 / 端到端
+npm test
+npm run test:e2e
+
+# RAG 检索评测（无需模型）
+node scripts/rag-eval.mjs
+
+# Agent 任务级评测（真实模型，需确认费用）
+AGENT_EVAL=1 node scripts/agent-eval.mjs
+AGENT_EVAL=1 AGENT_EVAL_LIMIT=5 node scripts/agent-eval.mjs</pre>
+</section>
+
+<!-- ================= 7 ================= -->
+<section class="major" id="s7">
+  <h2><span class="no">07</span>创新点说明</h2>
+
+  <h3>7.1 技术创新点</h3>
+  <table>
+    <tr><th style="width:5%">#</th><th style="width:23%">创新点</th><th>具体做法与价值</th></tr>
+    <tr><td>1</td><td>数据接地的工具型 Agent</td><td>把 LOTUS 查询、相似度、表格统计、数量核对都做成服务端确定性工具；系统提示词强制“先工具后数字”。与普通聊天式问答相比，回答中的数量、分类与来源科可被工具轨迹逐条验证。</td></tr>
+    <tr><td>2</td><td>确定性数据核对与冲突卡片</td><td><code>verify_claim</code> 把资料中的数量断言与 LOTUS 实际统计做差值/百分比比较，冲突时生成可视化卡片并写入简报。模型不参与计算，避免“看起来合理”的假一致。</td></tr>
+    <tr><td>3</td><td>计划—执行—规则反思的研究流程</td><td>复杂问题先出 2–4 步计划，再执行工具；反思由服务端规则检查（失败、空结果、缺来源、图片低置信度）生成，不额外调用模型，兼顾研究深度与成本。</td></tr>
+    <tr><td>4</td><td>混合 RAG 与可降级引用</td><td>bge-m3 语义向量 + BM25 中文二元组融合；向量服务不可用时自动回退 local-hash，回答不中断；引用契约统一到文件名/段落、DOI、URL。</td></tr>
+    <tr><td>5</td><td>先结构化再核验的多模态</td><td>视觉模型只输出带置信度的候选 JSON，服务端再自动查 LOTUS、找相似、画分布；低置信度不自动查库，不确定项强制进入回答与简报。</td></tr>
+    <tr><td>6</td><td>零依赖单端口架构与可中止流</td><td>静态站、领养、AI 均为 Node 内置模块实现；一个公开端口完成同源代理；客户端 abort 通过 <code>res.on("close")</code> 传播到上游模型，停止后不再消耗额度。</td></tr>
+  </table>
+
+  <h3>7.2 应用创新点</h3>
+  <table>
+    <tr><th style="width:5%">#</th><th style="width:23%">创新点</th><th>具体做法与价值</th></tr>
+    <tr><td>1</td><td>22 万级天然产物的空间化表达</td><td>把 LOTUS 结构点组织成“世界树”：树冠、树干、根际、土壤对应生态位；二十四节气、季节花瓣、土壤烷烃与闲置钟表把数据浏览变成可讲解的科普叙事。</td></tr>
+    <tr><td>2</td><td>回答—数据—空间的闭环</td><td>AI 返回的分子渲染为可点击 chip；点击后收起对话、飞到 3D 星点、打开详情卡。用户不必在“聊天结论”和“数据库条目”之间手动对照。</td></tr>
+    <tr><td>3</td><td>表格、文献与 LOTUS 同屏核对</td><td>同一工作台支持 CSV/Excel 统计、论文/DOI 检索、RAG 引用与数量核对，适合课程资料、论文笔记与数据库口径的交叉验证。</td></tr>
+    <tr><td>4</td><td>面向科普的导览与穿梭</td><td>每次进入询问是否带看；15 秒介绍界面；快捷菜单“带我穿梭群星”用镜头路径掠过冠层与根际，降低 22 万点场景的上手门槛。</td></tr>
+    <tr><td>5</td><td>可公网演示的额度与配置防护</td><td>配置锁、管理令牌、设置面板密码、按 IP 限流与并发控制，让比赛演示可以公开访问，而不必担心 Key 被改或额度被刷。</td></tr>
+  </table>
+
+  <div class="callout">
+    <b>一句话总结创新：</b>把“大模型会讲天然产物”推进到“大模型能在 22 万条真实结构上查、算、核对，并把结论带回可交互的 3D 世界”。
+  </div>
+</section>
+
+<!-- ================= 8 ================= -->
+<section class="major" id="s8">
+  <h2><span class="no">08</span>总结与展望</h2>
+
+  <h3>8.1 总结</h3>
+  <p>「世界之树」完成了从数据到界面、从模型到证据的完整闭环：</p>
+  <ul>
+    <li><b>数据层：</b>LOTUS 227,319 条结构、3D 构象、相似度索引与两层知识库，均可独立重建。</li>
+    <li><b>交互层：</b>22 万级 WebGL 星点树、生态层位、节气环、季节花瓣、闲置钟表、导览与穿梭，兼顾性能与科普表达。</li>
+    <li><b>AI 层：</b>11 个工具、工具循环、混合 RAG、多模态、研究任务、数据核对、会话恢复、限流与中止。</li>
+    <li><b>证据层：</b>数字走 LOTUS，文档给段落，论文给 DOI，网站给 URL；冲突时给出双方数值与差异。</li>
+    <li><b>工程层：</b>零依赖 Node、单端口部署、环境变量模板、离线包、公网防护与可复现测试。</li>
+  </ul>
+  <p>实测结果说明系统不是“演示壳”：Agent 18/18、RAG 30/30、E2E 20/20、单元 15/15；这些数字与脚本都随仓库提供，评委可以自行复现。</p>
+
+  <h3>8.2 不足</h3>
+  <ul>
+    <li><b>评测规模：</b>18 条 Agent 任务与 30 条 RAG 题只能作为回归基线，不能覆盖全部真实问题；关键词判断是字符串包含，不判断语义完全正确。</li>
+    <li><b>延迟：</b>首字与总耗时受服务商影响明显；本机测试中正文增量在流末尾集中到达，首字指标与总耗时接近。</li>
+    <li><b>视觉识别：</b>植物照片与结构式的识别仍依赖通用视觉模型；低质量图片、手绘结构式与罕见物种的准确率有限。</li>
+    <li><b>数据边界：</b>LOTUS 不提供药效、安全性或临床结论；本项目明确不做医学建议，相关问题的回答范围有限。</li>
+    <li><b>多用户：</b>当前只有匿名会话，没有账号体系；领养账本适合单机/小规模部署，尚未做分布式一致性。</li>
+    <li><b>移动端：</b>已做响应式抽屉，但 22 万点场景在低端手机上的帧率与发热仍需继续优化。</li>
+  </ul>
+
+  <h3>8.3 展望</h3>
+  <ol>
+    <li><b>更强的结构理解：</b>接入 OSRA / DECIMER 等结构式识别模型，把图片中的化学结构直接转成 SMILES 再查 LOTUS，减少对通用视觉模型的依赖。</li>
+    <li><b>更完整的证据链：</b>为每条 LOTUS 记录补充文献出处与实验数据链接；把论文中的化合物—活性—物种关系抽取成可查询图谱。</li>
+    <li><b>教学与协作：</b>增加教师模式、课堂任务、注释与收藏共享；在匿名会话之上提供可选账号，支持跨设备研究项目。</li>
+    <li><b>评测与可观测：</b>扩大 Agent 任务集与真实用户问题集；把工具成功率、延迟、引用准确率做成持续回归看板。</li>
+    <li><b>部署与性能：</b>提供容器镜像与一键脚本；对移动端做点云 LOD、分帧加载与 GPU 预算控制。</li>
+  </ol>
+
+  <div class="callout">
+    <b>结语：</b>天然产物数据已经足够大，下一步不是再做一个列表，而是让数据“可看见、可提问、可核对”。世界之树是一次面向教学与科普的尝试：让 AI 的每一句话，都能回到一颗具体的星。
+  </div>
+</section>
+
+<!-- ================= 附录 ================= -->
+<section class="major" id="sa">
+  <h2><span class="no">A</span>附录</h2>
+
+  <h3>A.1 环境变量（节选）</h3>
+  <table>
+    <tr><th style="width:24%">变量</th><th style="width:14%">默认</th><th>说明</th></tr>
+    <tr><td><code>AI_PROVIDER</code></td><td>dspro</td><td>deepseek / dspro / dsflash / glm / mimo / custom</td></tr>
+    <tr><td><code>AI_BASE_URL</code></td><td>DeepSeek</td><td>OpenAI 兼容接口，只填到 /v1 或 /v4</td></tr>
+    <tr><td><code>AI_MODEL</code></td><td>deepseek-v4-pro</td><td>对话与工具调用模型</td></tr>
+    <tr><td><code>AI_API_KEY</code></td><td>空</td><td>对话模型 Key，只存服务端</td></tr>
+    <tr><td><code>AI_VISION_MODEL</code></td><td>deepseek-flash</td><td>视觉模型；可单独配置 Base URL / Key</td></tr>
+    <tr><td><code>AI_EMBED_BASE_URL</code></td><td>SiliconFlow</td><td>向量服务地址</td></tr>
+    <tr><td><code>AI_EMBED_MODEL</code></td><td>BAAI/bge-m3</td><td>向量模型；留空则使用 local-hash</td></tr>
+    <tr><td><code>AI_EMBED_API_KEY</code></td><td>空</td><td>向量服务 Key，与对话 Key 分开</td></tr>
+    <tr><td><code>AI_CONFIG_LOCK</code></td><td>未设置</td><td>设为 1 锁定前端配置写操作</td></tr>
+    <tr><td><code>AI_ADMIN_TOKEN</code></td><td>空</td><td>管理令牌；写配置需带 <code>x-ai-admin-token</code></td></tr>
+    <tr><td><code>AI_SETTINGS_PASSWORD</code></td><td>worldtree</td><td>设置面板 AI/API 解锁密码</td></tr>
+    <tr><td><code>AI_RATE_LIMIT_CHAT</code></td><td>12</td><td>每 IP 每分钟对话请求上限</td></tr>
+    <tr><td><code>AI_MAX_CONCURRENT_CHATS</code></td><td>4</td><td>全局并发对话上限</td></tr>
+    <tr><td><code>AI_MAX_CONCURRENT_PER_IP</code></td><td>2</td><td>单 IP 并发对话上限</td></tr>
+    <tr><td><code>AI_MAX_TOOL_ROUNDS</code></td><td>16</td><td>工具调用轮次上限</td></tr>
+    <tr><td><code>AI_KB_MIN_SCORE</code></td><td>0.32</td><td>RAG 最低相关度阈值</td></tr>
+    <tr><td><code>SITE_PORT</code></td><td>5173</td><td>公开站点端口；面板 <code>PORT</code> 优先</td></tr>
+    <tr><td><code>CLAIM_PORT</code></td><td>8788</td><td>内部领养服务端口</td></tr>
+    <tr><td><code>AI_PORT</code></td><td>8790</td><td>内部 AI 服务端口</td></tr>
+  </table>
+  <p class="small">完整模板见仓库 <code>ai/.env.example</code>；所有变量与默认值均可在源码中检索到。</p>
+
+  <h3>A.2 依赖清单</h3>
+  <table>
+    <tr><th style="width:24%">类别</th><th>依赖</th><th style="width:22%">版本 / 许可</th></tr>
+    <tr><td>前端运行时</td><td>Three.js、RDKit.js、MediaPipe Tasks Vision</td><td>r169 / WASM / Apache 2.0</td></tr>
+    <tr><td>服务端</td><td>Node.js 内置模块（http、fs、fetch、crypto）</td><td>Node 18+，推荐 22.14.0</td></tr>
+    <tr><td>数据构建</td><td>Python 3.10+、RDKit</td><td>仅重建数据时需要</td></tr>
+    <tr><td>测试</td><td>Node <code>node:test</code>、内置 fetch、mock 服务</td><td>无第三方测试框架</td></tr>
+  </table>
+
+  <h3>A.3 仓库与团队</h3>
+  <table>
+    <tr><th style="width:18%">项目</th><th>内容</th></tr>
+    <tr><td>作品名称</td><td>世界之树</td></tr>
+    <tr><td>代码仓库</td><td>https://github.com/touzhuzri/eco-hotspots （Public）</td></tr>
+    <tr><td>团队</td><td>刘同字（队长，技术栈、工具调用）、刘峥（专业知识搜寻、权威网站查询、知识验证）</td></tr>
+    <tr><td>单位</td><td>华中农业大学 · 化学学院 · 应用化学</td></tr>
+    <tr><td>指导老师</td><td>无</td></tr>
+    <tr><td>许可</td><td>代码 MIT；LOTUS 数据 CC0；第三方声明见 NOTICE.md</td></tr>
+  </table>
+
+  <h3>A.4 复现命令</h3>
+  <pre>git clone https://github.com/touzhuzri/eco-hotspots.git
+cd eco-hotspots
+cp ai/.env.example ai/.env    # 填入 AI_API_KEY / AI_EMBED_API_KEY
+./start.sh daemon
+npm test && npm run test:e2e
+node scripts/rag-eval.mjs
+AGENT_EVAL=1 node scripts/agent-eval.mjs</pre>
+
+  <p class="ref" style="margin-top:10px">参考资料：Rutz et al. 2022, eLife 11:e70780（LOTUS）；ClassyFire 2016；NPClassifier 2021；COCONUT 2021/2024；项目仓库 docs/AI-ARCHITECTURE.md、docs/PERFORMANCE.md、docs/agent-eval.md、docs/rag-eval.md。</p>
+</section>
+
+<div class="footer"><span>世界之树 · 技术文档 · v1.0</span><span>华中农业大学 · 刘同字 / 刘峥</span></div>
+
+</body>
+</html>
