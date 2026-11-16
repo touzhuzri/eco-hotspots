@@ -13,14 +13,18 @@ import { mountHandGestures } from "./ui/HandGestures.js";
 import { mountAiDock } from "./ui/AiDock.js";
 import { mountAiSettings } from "./ui/AiSettings.js";
 import { openTour, openAbout } from "./ui/HelpOverlay.js";
+import { getUiScale } from "./display.js";
 
-/** 大屏按 1440×900 设计稿等比放大 UI；小屏继续走原有响应式断点 */
+/**
+ * 大屏 UI 按 1920×1080 设计框缩放；
+ * 2K/4K 不再无上限放大，具体上下限见 display.js。
+ * 小屏继续走原有响应式断点，不叠加 zoom。
+ */
 function syncUiScale() {
   const mobile = window.matchMedia(
     "(max-width: 900px), (max-height: 520px)"
   ).matches;
-  const raw = Math.min(window.innerWidth / 1440, window.innerHeight / 900);
-  const scale = mobile ? 1 : Math.min(2, Math.max(1, raw));
+  const scale = mobile ? 1 : getUiScale();
   document.documentElement.style.setProperty(
     "--ui-scale",
     scale.toFixed(3)

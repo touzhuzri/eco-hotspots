@@ -1182,14 +1182,21 @@ body.ui-intro .hotspot3d {
 
 /* ── 分辨率适配 ── */
 
-/* 超宽/大屏：详情略放宽，字号跟上 */
+/* 超宽/大屏：面板略放宽、内边距加大，避免 2K/4K 下内容被挤在窄条里 */
 @media (min-width: 1800px) {
   .detail {
-    width: min(460px, 34vw);
+    width: min(500px, 34vw);
+    padding: 18px 18px 16px;
     font-size: 15px;
   }
   .scene-hud { font-size: 12px; }
-  .eco-search { width: min(360px, 28vw); }
+  .eco-search { width: min(380px, 28vw); }
+}
+
+/* 4K：继续加宽面板，但 UI 本身不再放大到 2 倍 */
+@media (min-width: 3000px) {
+  .detail { width: min(560px, 30vw); }
+  .eco-search { width: min(440px, 24vw); }
 }
 
 /* 中等桌面 / 小笔记本 */
@@ -2056,6 +2063,12 @@ code.wrap {
   transition: width 0.22s ease, transform 0.28s ease, opacity 0.9s ease;
 }
 .explore-rail.is-collapsed { width: 46px; padding: 8px 6px; overflow: hidden; }
+@media (min-width: 1800px) {
+  .explore-rail:not(.is-collapsed) { width: 264px; }
+}
+@media (min-width: 3000px) {
+  .explore-rail:not(.is-collapsed) { width: 288px; }
+}
 .explore-rail.is-collapsed .rail-body { display: none; }
 .explore-rail.is-collapsed .rail-title { display: none; }
 .explore-rail.is-collapsed .rail-collapse { margin: 0 auto; }
@@ -3207,7 +3220,9 @@ body.idle .bottom-dock {
   }
 }
 
-/* ── 大屏 UI 等比缩放：只缩放浮层，WebGL 场景保持全屏 ── */
+/* ── 大屏 UI 设计框缩放：只缩放浮层，WebGL 场景保持全屏 ──
+   倍率由 display.js 的 getUiScale() 按 1920×1080 计算，并收口在 1–1.5；
+   宽屏再单独加宽面板，避免内容被挤在窄条里。 */
 @media (min-width: 1101px) and (min-height: 601px) {
   .eco-search,
   .bottom-dock,

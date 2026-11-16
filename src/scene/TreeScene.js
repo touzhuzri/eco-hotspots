@@ -53,6 +53,7 @@ import {
   crownGeom,
 } from "./starTree.js";
 import { createCompanion } from "./Companion.js";
+import { getAdaptiveDpr, watchDisplay } from "../display.js";
 
 /** 树体主色：按层位（叶绿 / 干褐 / 根褐黄 / 土黄褐） */
 const LAYER_COLOR = {
@@ -673,7 +674,8 @@ export function mountTreeScene(rootEl) {
     powerPreference: "high-performance",
   });
   renderer.setClearColor(0x03040a, 1);
-  const dpr = Math.min(1.5, window.devicePixelRatio || 1);
+  // 渲染倍率由视口面积 + devicePixelRatio 自适应，不再写死 1.5。
+  let dpr = getAdaptiveDpr();
   renderer.setPixelRatio(dpr);
 
   const scene = new THREE.Scene();
@@ -1499,10 +1501,32 @@ export function mountTreeScene(rootEl) {
     return (right - left) * 0.5;
   }
 
+  /** 点云 shader 用 uPixelRatio 把「CSS 像素」换算成 drawingBuffer 像素 */
+  function syncDprUniforms() {
+    for (const obj of [structPts, trunkPts, otherPts, flowPts]) {
+      const mat = obj?.material;
+      if (mat?.uniforms?.uPixelRatio) mat.uniforms.uPixelRatio.value = dpr;
+    }
+    for (const mat of [starfieldMat, motesMat, leafMat, wormMat]) {
+      if (mat?.uniforms?.uPixelRatio) mat.uniforms.uPixelRatio.value = dpr;
+    }
+  }
+
+  function applyDpr(next) {
+    const value = Math.max(1, next);
+    if (Math.abs(value - dpr) < 0.005) return;
+    dpr = value;
+    renderer.setPixelRatio(dpr);
+    syncDprUniforms();
+  }
+
   function resize() {
     const rect = rootEl.getBoundingClientRect();
     W = Math.max(320, Math.floor(rect.width || window.innerWidth));
     H = Math.max(320, Math.floor(rect.height || window.innerHeight));
+    // 视口越大，单帧像素越多；这里按像素预算回退倍率，
+    // 跨屏拖动 / 浏览器缩放后也会重新计算。
+    applyDpr(getAdaptiveDpr(W, H));
     camera.aspect = W / H;
     // 左右两侧面板常驻：把树心放到可显示区域正中；闲置留白时回到画面中心
     sideOffset = computeSideOffset();
@@ -1520,14 +1544,7 @@ export function mountTreeScene(rootEl) {
     canvas.style.width = W + "px";
     canvas.style.height = H + "px";
     setupComposer(W, H);
-    if (structPts) structPts.material.uniforms.uPixelRatio.value = dpr;
-    if (trunkPts) trunkPts.material.uniforms.uPixelRatio.value = dpr;
-    if (otherPts) otherPts.material.uniforms.uPixelRatio.value = dpr;
-    if (flowPts) flowPts.material.uniforms.uPixelRatio.value = dpr;
-    if (starfieldMat) starfieldMat.uniforms.uPixelRatio.value = dpr;
-    if (motesMat) motesMat.uniforms.uPixelRatio.value = dpr;
-    if (leafMat) leafMat.uniforms.uPixelRatio.value = dpr;
-    if (wormMat) wormMat.uniforms.uPixelRatio.value = dpr;
+    syncDprUniforms();
   }
 
   function spawnFlow(rnd) {
@@ -5656,7 +5673,8 @@ export function mountTreeScene(rootEl) {
     if (star) setSelected(star.id);
   });
 
-  window.addEventListener("resize", resize);
+  // 同时覆盖窗口尺寸变化、浏览器缩放与跨屏拖动（DPR 变化）
+  const stopDisplayWatch = watchDisplay(resize);
   resize();
   rebuild();
   buildAmbient();
@@ -6628,7 +6646,7 @@ export function mountTreeScene(rootEl) {
     },
     destroy() {
       cancelAnimationFrame(raf);
-      window.removeEventListener("resize", resize);
+      stopDisplayWatch();
       railObserver?.disconnect();
       railObserver = null;
       renderer.dispose();

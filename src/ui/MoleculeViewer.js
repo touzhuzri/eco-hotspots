@@ -9,6 +9,7 @@
 
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { getAdaptiveDpr, watchDisplay } from "../display.js";
 
 const ELEMENT_STYLE = {
   C: { color: 0xd8e8d4, radius: 0.28 },
@@ -56,7 +57,8 @@ export function createMoleculeViewer() {
     antialias: true,
     powerPreference: "high-performance",
   });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  let dpr = getAdaptiveDpr();
+  renderer.setPixelRatio(dpr);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.setClearColor(0x000000, 0);
   renderer.domElement.className = "molecule-3d-canvas";
@@ -132,6 +134,11 @@ export function createMoleculeViewer() {
     const w = host.clientWidth;
     const h = host.clientHeight;
     if (w < 2 || h < 2) return;
+    const nextDpr = getAdaptiveDpr(w, h);
+    if (Math.abs(nextDpr - dpr) >= 0.005) {
+      dpr = nextDpr;
+      renderer.setPixelRatio(dpr);
+    }
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
@@ -358,6 +365,7 @@ export function createMoleculeViewer() {
   function destroy() {
     hide();
     clearMolecule();
+    stopDisplayWatch();
     ro.disconnect();
     controls.dispose();
     renderer.dispose();
@@ -396,6 +404,9 @@ export function createMoleculeViewer() {
     resize();
   });
   ro.observe(host);
+  const stopDisplayWatch = watchDisplay(() => {
+    if (!host.hidden) resize();
+  });
 
   const api = {
     host,

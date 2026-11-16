@@ -8,6 +8,8 @@
  * 调试：?flora=sakura | rapeseed | ginkgo 可强制指定种类。
  */
 
+import { getAdaptiveDpr, watchDisplay } from "../display.js";
+
 const TYPES = ["sakura", "rapeseed", "ginkgo"];
 
 const PALETTE = {
@@ -173,7 +175,11 @@ export function mountBootFlora(loaderEl) {
     const rect = loaderEl.getBoundingClientRect();
     W = Math.max(1, rect.width);
     H = Math.max(1, rect.height);
-    dpr = Math.min(DPR_CAP, window.devicePixelRatio || 1);
+    // 加载页只是短期 2D 装饰，给更小的像素预算即可
+    dpr = getAdaptiveDpr(W, H, {
+      max: DPR_CAP,
+      budget: 3_000_000,
+    });
 
     for (const [canvas, ctx] of [
       [back, bctx],
@@ -249,7 +255,7 @@ export function mountBootFlora(loaderEl) {
   )?.matches;
 
   resize();
-  window.addEventListener("resize", resize);
+  const stopDisplayWatch = watchDisplay(resize);
 
   if (!reduceMotion) raf = requestAnimationFrame(frame);
 
@@ -259,7 +265,7 @@ export function mountBootFlora(loaderEl) {
       if (!running) return;
       running = false;
       if (raf) cancelAnimationFrame(raf);
-      window.removeEventListener("resize", resize);
+      stopDisplayWatch();
       back.remove();
       front.remove();
     },
