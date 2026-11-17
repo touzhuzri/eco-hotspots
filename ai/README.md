@@ -10,12 +10,12 @@
 AI_PROVIDER=dspro
 AI_BASE_URL=https://api.deepseek.com/v1
 AI_MODEL=deepseek-v4-pro
-AI_API_KEY=在这里填 DeepSeek 兼容接口 Key
+AI_API_KEY=<your-key>
 
 # 向量默认用 SiliconFlow；Key 与对话 Key 分开填
 AI_EMBED_BASE_URL=https://api.siliconflow.cn/v1
 AI_EMBED_MODEL=BAAI/bge-m3
-AI_EMBED_API_KEY=在这里填 SiliconFlow Key
+AI_EMBED_API_KEY=<your-key>
 
 AI_PORT=8790
 ```
@@ -208,7 +208,7 @@ AI_KB_LOCAL_DIM=768
 # GLM-4V
 AI_VISION_MODEL=glm-4v-plus
 AI_VISION_BASE_URL=https://open.bigmodel.cn/api/paas/v4
-AI_VISION_API_KEY=你的视觉服务 Key
+AI_VISION_API_KEY=<your-key>
 
 # 本地 Ollama（OpenAI 兼容）
 # AI_VISION_BASE_URL=http://127.0.0.1:11434/v1

@@ -92,7 +92,7 @@ AI_VISION_MODEL=glm-4v-plus
 # 本地 Ollama（需先 ollama pull qwen2.5vl）
 AI_VISION_BASE_URL=http://127.0.0.1:11434/v1
 AI_VISION_MODEL=qwen2.5vl
-AI_VISION_API_KEY=ollama
+AI_VISION_API_KEY=<optional>
 ```
 
 ## 6. 向量模型与知识库
