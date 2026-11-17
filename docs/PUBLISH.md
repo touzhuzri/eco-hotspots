@@ -5,11 +5,11 @@
 
 ## 0. 当前状态（2026-11-14）
 
-- `main` 已合并到最新提交 `41bab21`，包含多模态、研究反思、表格分析、服务端会话、
+- `main` 已合并最新参赛版本，包含多模态、研究反思、表格分析、服务端会话、
   公网防护、导览、穿梭群星、Agent 任务级评测与 mock 端到端测试。
 - 公开仓库已推送，`main` 为默认分支；功能分支均已合并。
 - 技术文档已生成：`docs/technical-report.pdf`（18 页）；环境配置见 `docs/ENVIRONMENT.md`。
-- 在线演示：<http://play.simpfun.cn:41018/>；建议打 tag `v0.2.0-competition`。
+- 在线演示：<http://play.simpfun.cn:41018/>；已打 tag `v0.2.0-competition`。
 
 ### 需要团队提供的信息
 
