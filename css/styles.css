@@ -222,6 +222,38 @@ body.idle .hotspot3d {
   pointer-events: none;
 }
 
+/* H 键：隐藏全部界面与助手，只留世界树；再按一次恢复 */
+body.ui-hidden .eco-search,
+body.ui-hidden .explore-rail,
+body.ui-hidden .bottom-dock,
+body.ui-hidden .detail,
+body.ui-hidden .scene-settings,
+body.ui-hidden .scene-settings-btn,
+body.ui-hidden .footer,
+body.ui-hidden .hotspot3d,
+body.ui-hidden .ai-dock,
+body.ui-hidden .ai-dock-backdrop,
+body.ui-hidden .ai-intro-guide,
+body.ui-hidden .guide-prompt,
+body.ui-hidden .companion-bubble,
+body.ui-hidden .companion-menu,
+body.ui-hidden .companion-subtitle,
+body.ui-hidden .companion-tap-ring,
+body.ui-hidden .companion-focus,
+body.ui-hidden .help-overlay,
+body.ui-hidden .claim-overlay,
+body.ui-hidden .compare-dialog,
+body.ui-hidden .eco-tip,
+body.ui-hidden .link-plate,
+body.ui-hidden .sel-class,
+body.ui-hidden .hand-cursor,
+body.ui-hidden .hand-cam,
+body.ui-hidden .hand-legend {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
 /* 首次进入：树完全长成前先隐藏整套界面 */
 body.ui-intro .eco-search,
 body.ui-intro .explore-rail,

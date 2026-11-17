@@ -1077,8 +1077,32 @@ export function mountTreeScene(rootEl) {
     const tag = (t.tagName || "").toLowerCase();
     return tag === "input" || tag === "textarea" || t.isContentEditable;
   }
+  /** H：一键隐去所有界面与助手，只留下世界树；再按一次恢复。 */
+  function toggleUiHidden() {
+    const hidden = !document.body.classList.contains("ui-hidden");
+    document.body.classList.toggle("ui-hidden", hidden);
+    if (hidden) {
+      companion.hideMenu();
+      companion.group.visible = false;
+      document.body.classList.remove("idle");
+    } else {
+      companion.group.visible = companion.visible;
+    }
+  }
   window.addEventListener("keydown", (e) => {
     if (wasdTyping(e)) return;
+    // H：隐藏/恢复全部 UI（含小助手）；输入框内不触发
+    if (
+      !e.repeat &&
+      !e.ctrlKey &&
+      !e.metaKey &&
+      !e.altKey &&
+      e.key.toLowerCase() === "h"
+    ) {
+      e.preventDefault();
+      toggleUiHidden();
+      return;
+    }
     // AI 对话框打开时，场景快捷键暂停，避免操作到后面的世界树
     if (document.body.classList.contains("ai-dock-open")) return;
     // `~`（Backquote）：开关第一人称
@@ -4810,6 +4834,7 @@ export function mountTreeScene(rootEl) {
 
     // 闲置 12 秒进入钟表；AI 对话打开或刚有 AI 交互时不打断
     const introUI = document.body.classList.contains("ui-intro");
+    const uiHidden = document.body.classList.contains("ui-hidden");
     const nowMs = performance.now();
     const aiOpen = document.body.classList.contains("ai-dock-open");
     const aiRecent = nowMs - (window.__aiLastActive || 0) < 12000;
@@ -4818,7 +4843,7 @@ export function mountTreeScene(rootEl) {
     const guiding = companion.isGuiding();
     if (wasGuiding && !guiding) lastInteraction = nowMs;
     wasGuiding = guiding;
-    if (introUI || aiOpen || aiRecent || guiding) {
+    if (introUI || aiOpen || aiRecent || guiding || uiHidden) {
       document.body.classList.remove("idle");
     } else if (nowMs - lastInteraction > 12000) {
       document.body.classList.add("idle");
@@ -4836,9 +4861,11 @@ export function mountTreeScene(rootEl) {
     const zoomedOut = cam.distTarget >= ZOOM_DESELECT_AT;
     viewOffsetTarget = idleNow
       ? introClockShift
-      : selNow && !zoomedOut
+      : uiHidden
         ? 0
-        : sideOffset;
+        : selNow && !zoomedOut
+          ? 0
+          : sideOffset;
     if (Math.abs(viewOffsetTarget - viewOffsetX) > 0.05) {
       // 选中/取消时画面会整体横移 96px；用限速的指数缓动，
       // 避免掉帧时第一帧直接跳 10px 以上，看起来像被拽了一下。
