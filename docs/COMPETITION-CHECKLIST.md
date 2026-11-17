@@ -49,14 +49,14 @@ git grep -nEI '^[A-Z_]*API_KEY[[:space:]]*=[[:space:]]*[^[:space:]#]+' \
 
 ## 三、提交前最后检查
 
-- [ ] 在线演示地址填入 `README.md` 与 `docs/PUBLISH.md`
+- [x] 在线演示地址已填入 `README.md` 与 `docs/PUBLISH.md`：<http://play.simpfun.cn:41018/>
 - [ ] 仓库 About 填写演示地址与 Topics
-- [ ] 创建 Release / tag（建议 `v0.2.0-competition`）
+- [x] 创建 Release / tag（`v0.2.0-competition`）
 - [ ] 确认演示环境已设置 `AI_CONFIG_LOCK=1` 与非默认 `AI_SETTINGS_PASSWORD`
-- [ ] 确认 `GET /ai/.env` 返回 404
-- [ ] 确认部署包内 `.env` 为空 Key 模板
-- [ ] 录屏 5–8 分钟演示视频（`docs/DEMO-SCRIPTS.md` 可直接使用）
-- [ ] 提交 PDF 前再次确认页数与文件大小
+- [x] 确认 `GET /ai/.env` 返回 404
+- [x] 确认部署包内不含 `.env`，仅保留 `.env.example`
+- [ ] 录屏 5–8 分钟演示视频（脚本见 `docs/DEMO-SCRIPTS.md`，成片待录）
+- [x] 提交 PDF 前再次确认页数与文件大小：技术文档 18 页；作品介绍文档 7 页
 
 ## 四、可复现证据
 

@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>世界之树 · 作品介绍文档</title>
+<style>
+  @page { size: A4; margin: 17mm 16mm 15mm 16mm; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", sans-serif;
+    color: #1d2a24;
+    font-size: 9.6pt;
+    line-height: 1.65;
+    background: #fff;
+  }
+  .cover {
+    height: 260mm;
+    margin: -17mm -16mm 0;
+    padding: 34mm 24mm 22mm;
+    color: #eef8f1;
+    background:
+      radial-gradient(circle at 78% 22%, rgba(94,207,122,.28), transparent 34%),
+      linear-gradient(145deg, #06150d 0%, #0c2b19 52%, #123d23 100%);
+    position: relative;
+    overflow: hidden;
+  }
+  .cover::after {
+    content: "";
+    position: absolute;
+    inset: auto -30mm -50mm auto;
+    width: 150mm;
+    height: 150mm;
+    border-radius: 50%;
+    border: 1px solid rgba(180, 230, 190, .16);
+    box-shadow: 0 0 0 12mm rgba(120, 210, 150, .035), 0 0 0 26mm rgba(120, 210, 150, .025);
+  }
+  .cover img.logo {
+    width: 30mm;
+    height: 30mm;
+    object-fit: contain;
+    margin-bottom: 12mm;
+    filter: drop-shadow(0 8px 18px rgba(0,0,0,.28));
+  }
+  .cover .kicker {
+    font-size: 9pt;
+    letter-spacing: .28em;
+    color: #9fe0b2;
+    margin-bottom: 5mm;
+  }
+  .cover h1 {
+    margin: 0 0 3mm;
+    font-size: 34pt;
+    line-height: 1.12;
+    letter-spacing: .06em;
+  }
+  .cover h2 {
+    margin: 0 0 18mm;
+    font-size: 14pt;
+    font-weight: 400;
+    color: #cfe9d7;
+    letter-spacing: .14em;
+  }
+  .cover .lead {
+    max-width: 132mm;
+    color: #c4dccb;
+    font-size: 10.4pt;
+    line-height: 1.85;
+    margin-bottom: 18mm;
+  }
+  .cover .meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3mm 10mm;
+    font-size: 9.2pt;
+    color: #d9ecdf;
+    border-top: 1px solid rgba(190, 230, 200, .22);
+    padding-top: 7mm;
+  }
+  .cover .meta b { color: #8fd7a5; font-weight: 600; }
+  .cover .foot {
+    position: absolute;
+    left: 24mm;
+    bottom: 16mm;
+    font-size: 8.4pt;
+    color: #8fb79a;
+    letter-spacing: .08em;
+  }
+  .page { page-break-before: always; }
+  h1.sec {
+    font-size: 16pt;
+    margin: 0 0 4mm;
+    color: #0f3b22;
+    border-left: 4px solid #2fbf70;
+    padding-left: 3mm;
+  }
+  h2 { font-size: 11.2pt; margin: 5mm 0 2mm; color: #155b33; }
+  h3 { font-size: 10pt; margin: 3.5mm 0 1.5mm; color: #1f6b40; }
+  p { margin: 0 0 2.6mm; text-align: justify; }
+  ul, ol { margin: 0 0 3mm 5mm; padding: 0; }
+  li { margin: 1.1mm 0; }
+  strong { color: #0f3b22; }
+  .lead-box {
+    background: linear-gradient(135deg, rgba(47,191,112,.08), rgba(201,162,39,.06));
+    border: 1px solid rgba(47,191,112,.22);
+    border-radius: 2.5mm;
+    padding: 3.5mm 4mm;
+    margin: 0 0 4mm;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 8.7pt; margin: 2mm 0 4mm; table-layout: fixed; }
+  th, td { border: 1px solid #cfdcd4; padding: 2.2mm 2.4mm; vertical-align: top; overflow-wrap: anywhere; }
+  th { background: #eef7f1; color: #124d2c; font-weight: 600; }
+  tr:nth-child(even) td { background: #fbfdfb; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; margin: 2mm 0 4mm; }
+  .shot { border: 1px solid #d6e2db; border-radius: 2.5mm; overflow: hidden; background: #f7faf8; }
+  .shot img { display: block; width: 100%; height: 48mm; object-fit: cover; }
+  .shot .cap { padding: 2mm 2.5mm; font-size: 8.2pt; color: #4e6658; line-height: 1.45; }
+  .note { color: #5b6f63; font-size: 8.6pt; }
+  .badge { display: inline-block; padding: .4mm 2mm; border-radius: 1mm; background: #e8f6ed; color: #176b3c; font-size: 8.2pt; margin-right: 1.5mm; }
+  .footer { margin-top: 5mm; padding-top: 2mm; border-top: 1px solid #dbe6df; color: #7a8e82; font-size: 8pt; display: flex; justify-content: space-between; }
+  .avoid { page-break-inside: avoid; }
+</style>
+</head>
+<body>
+
+<section class="cover">
+  <img class="logo" src="../assets/emblem.png" alt="世界之树徽标" />
+  <div class="kicker">LOTUS · NATURAL PRODUCT WORLD TREE</div>
+  <h1>世界之树</h1>
+  <h2>作品介绍文档</h2>
+  <p class="lead">
+    把 227,319 条 LOTUS 天然产物结构种成一棵可以漫游的 WebGL 星点树，
+    再接入一个能查数据、读论文、识图片、做研究、并把每个数字落到出处的 AI 分析坞。
+  </p>
+  <div class="meta">
+    <div><b>团队：</b>刘同字（队长，2126482）、刘峥、张少杰</div>
+    <div><b>指导老师：</b>刘思思</div>
+    <div><b>单位：</b>华中农业大学 · 化学学院 · 应用化学</div>
+    <div><b>学历：</b>本科 · 2024 年入学</div>
+    <div><b>源码仓库：</b>github.com/touzhuzri/eco-hotspots</div>
+    <div><b>版本：</b>v1.0 · 2026 年 11 月</div>
+  </div>
+  <div class="foot">仅作科学传播与教学演示 · 不构成任何用药建议</div>
+</section>
+
+<section class="page">
+  <h1 class="sec">一、项目详情及使用方式</h1>
+  <div class="lead-box">
+    <strong>一句话定位：</strong>世界之树是一个以 LOTUS 天然产物数据为底座、以 WebGL 星点树为交互入口的 AI 分析演示系统。
+    它把结构—来源记录映射到天空、冠层、树干、根际、土壤五层，让用户先“看见”数据，再通过 AI 工具“追问”数据。
+  </div>
+
+  <p>
+    项目使用 LOTUS Initiative frozen 260413（CC0）的 227,319 条结构记录、1,602 个物种节点和 2,038 个精选分子。
+    前端使用 Three.js 自定义点云着色器呈现 22.7 万级星点，按 InChIKey 分片加载分子元数据与 3D 构象；
+    右侧详情卡按需调用 RDKit.js 渲染 2D 结构式，3D 构象由 RDKit ETKDG 离线生成。
+  </p>
+
+  <h2>使用方式</h2>
+  <ol>
+    <li>浏览器打开站点，等待世界树生长完成；首次进入可选择“开始导览”或“跳过”。</li>
+    <li>拖动旋转、滚轮/双指缩放，<strong>WASD</strong> 平移取景，<strong>~</strong> 进入第一人称，<strong>H</strong> 隐藏全部界面和小助手，再按一次恢复。</li>
+    <li>左侧探索栏支持名称搜索、模糊搜索、类群/层位/化学分类/来源科筛选、随机漫游、今日分子、精选分子和附近分子。</li>
+    <li>点击星点打开分子详情，可查看结构式、3D 构象、分子式、质量、XLogP、分类、来源物种、生态说明与 LOTUS 来源；可复制链接、收藏、下载资料或领养。</li>
+    <li>底部 AI 分析坞支持自然语言提问，也支持上传 PDF/Word/CSV/Excel 和结构式图片；研究模式会展示计划、工具调用、反思和可导出的研究简报。</li>
+    <li>服务器部署只需 Node.js 18+：解压完整包后执行 <code>./install-offline.sh daemon</code>；默认只公开一个站点端口，领养与 AI 服务只绑定本机。</li>
+  </ol>
+  <p class="note">
+    数据边界：LOTUS 不包含实验活性、毒理或临床数据，本作品只做科学传播与教学演示，不提供药效、剂量或安全建议。
+  </p>
+</section>
+
+<section class="page">
+  <h1 class="sec">二、项目亮点</h1>
+  <ul>
+    <li><strong>22.7 万条结构做成可漫游的星点树：</strong>不是静态图鉴，而是可旋转、缩放、穿梭、筛选和定位的三维数据空间；树层就是生态层位。</li>
+    <li><strong>AI 不是聊天框，而是工具型 Agent：</strong>数字和结论优先走 LOTUS 工具，而不是依赖模型记忆；覆盖查询、相似分子、画图、场景定位、文献检索、表格分析、数据核对等 11 个工具。</li>
+    <li><strong>RAG 可溯源：</strong>上传论文/资料后，回答标注《文件名》第几段、DOI 或 URL，并支持导出包含研究计划、工具记录、结论、反思和来源的研究简报。</li>
+    <li><strong>多模态识图 + 自动核验：</strong>图片先抽取为结构化候选（图像类型、科属/分子候选、置信度、不确定项），再由服务端查 LOTUS、找相似分子、画分布图；视觉模型不直接下结论。</li>
+    <li><strong>确定性数据核对：</strong>资料写“某科有 1000 条”时，系统调用 LOTUS 实际统计并生成“声称值 / 实际值 / 差异百分比”核对卡，而不是含糊地说“基本一致”。</li>
+    <li><strong>设计与工程兼顾：</strong>待机时钟由校徽明暗采样重排星点；3D 构象来自 RDKit；前端自适应 DPR，部署零依赖、单端口、配置锁、限流和同源代理。</li>
+    <li><strong>可复现的评测：</strong>Agent 任务 18/18、RAG Hit@4 30/30、端到端 20/20、单元测试 15/15。</li>
+  </ul>
+
+  <h2>核心体验路径</h2>
+  <table>
+    <tr><th style="width:24%">路径</th><th>用户看到什么</th></tr>
+    <tr><td>进入</td><td>三个季节加载界面 → 世界树生长 → 小助手介绍左栏、右栏与 AI 分析坞</td></tr>
+    <tr><td>探索</td><td>快速漫游、穿梭星海、连线吸附、今日分子、领养、收藏、下载资料</td></tr>
+    <tr><td>查找</td><td>鱼藤酮/烟碱/印楝素模糊搜索；类群、化学分类、来源科筛选；精选与附近分子</td></tr>
+    <tr><td>理解</td><td>二十四节气钟表、2D 结构式、3D 球棍模型、RDKit 技术栈</td></tr>
+    <tr><td>分析</td><td>论文入库、多模态识图、LOTUS 核对、相似分子对比、快速分析、研究简报</td></tr>
+  </table>
+</section>
+
+<section class="page">
+  <h1 class="sec">三、AI 测试技术落地使用情况概述</h1>
+  <p>
+    项目采用 OpenAI 兼容接口接入对话模型，支持 GLM、DeepSeek、MiMo 等服务商切换；前端通过 SSE 接收流式回答，
+    服务端负责工具调用、知识库检索、文件解析、图片抽取和会话管理。AI 层不是“把整篇资料塞给模型”，
+    而是先检索、再调用工具、最后把来源和局限写回回答。
+  </p>
+
+  <h2>已落地场景</h2>
+  <ul>
+    <li><strong>论文/课程资料阅读：</strong>上传 PDF/Word，切块、向量化、检索相关段落并给出引用。</li>
+    <li><strong>表格统计：</strong>上传 CSV/Excel，按列分组、计数、求和、平均、筛选并生成图表。</li>
+    <li><strong>结构式识图：</strong>上传图片，抽取候选分子后查 LOTUS、找相似分子、画分类分布。</li>
+    <li><strong>数据核对：</strong>把资料中的数字与 LOTUS 实际统计做确定性比较，输出冲突卡。</li>
+    <li><strong>研究任务：</strong>计划 → 工具调用 → 规则反思 → 研究简报导出。</li>
+    <li><strong>快速分析：</strong>在对话中展示思考/工具过程，并快速给出分子信息和数据来源。</li>
+  </ul>
+
+  <h2>本地实测结果</h2>
+  <table>
+    <tr><th style="width:34%">测试项</th><th style="width:24%">结果</th><th>条件</th></tr>
+    <tr><td>Agent 任务通过</td><td><strong>18/18（100%）</strong></td><td>真实模型，2026-11-13</td></tr>
+    <tr><td>工具选择</td><td>18/18（100%）</td><td>同上</td></tr>
+    <tr><td>来源覆盖</td><td>18/18（100%）</td><td>同上</td></tr>
+    <tr><td>RAG Hit@4</td><td><strong>30/30（100%）</strong></td><td>BAAI/bge-m3，14 文档 / 26 片段</td></tr>
+    <tr><td>RAG MRR</td><td><strong>1.000</strong></td><td>同上</td></tr>
+    <tr><td>RAG Cite@4</td><td>30/30（100%）</td><td>同上</td></tr>
+    <tr><td>端到端测试</td><td>20/20</td><td>mock 模型，不消耗 API</td></tr>
+    <tr><td>单元测试</td><td>15/15</td><td>表格、核对、PDF</td></tr>
+  </table>
+
+  <h2>边界与防护</h2>
+  <p>
+    项目不提供药效/剂量建议；知网、万方、Web of Science 只提供检索入口，不抓取受限全文。
+    公网部署可开启配置锁、管理令牌、设置密码、IP 限流和并发限制，<code>/ai/.env</code> 由站点服务器拦截；
+    前端不接触真实 API Key。
+  </p>
+</section>
+
+<section class="page">
+  <h1 class="sec">四、项目涉及的关键技术</h1>
+  <table>
+    <tr><th style="width:22%">层面</th><th>关键技术</th></tr>
+    <tr><td>三维呈现</td><td>Three.js / WebGL 点云、自定义顶点/片元着色器、Bloom、LOD、按需分片加载；22.7 万级结构点实时渲染。</td></tr>
+    <tr><td>数据工程</td><td>LOTUS frozen 260413、InChIKey 分片、634 个元数据分片、631 个 3D 分片、facets 分类索引、Morgan 相似分子索引。</td></tr>
+    <tr><td>AI Agent</td><td>OpenAI 兼容协议、SSE 流式输出、Function Calling、11 个工具、工具轨迹与来源记录、匿名会话。</td></tr>
+    <tr><td>RAG</td><td>BAAI/bge-m3 1024 维向量 + BM25 混合检索；无 Embedding 服务时退化为本地特征哈希 768 维。</td></tr>
+    <tr><td>多模态</td><td>视觉模型结构化 JSON 抽取、置信度阈值、低置信度不自动查库、LOTUS 自动核验。</td></tr>
+    <tr><td>分子可视化</td><td>RDKit.js 浏览器内 2D 结构式；RDKit ETKDG 离线生成 3D 构象，缺失时回退 2D。</td></tr>
+    <tr><td>工程化</td><td>零依赖 Node 服务、同源 <code>/api</code> 代理、单公开端口、限流、配置锁、自适应 DPR、H 键隐藏 UI。</td></tr>
+  </table>
+
+  <h2>关键设计：把“查找”和“核对”分开</h2>
+  <p>
+    模型负责理解问题、决定调用哪个工具；真正的数字由服务端从 LOTUS 或用户上传的表格中计算。
+    例如“资料里说某科有 1000 条，和 LOTUS 一致吗？”会走
+    <code>verify_claim</code>，返回声称值、实际值、差异百分比和来源；
+    模型只负责转述结果。这样既保留自然语言交互，又避免把统计交给模型“心算”。
+  </p>
+</section>
+
+<section class="page">
+  <h1 class="sec">五、项目相关图片</h1>
+  <div class="grid">
+    <div class="shot">
+      <img src="../assets/emblem.png" alt="世界之树新徽标" />
+      <div class="cap">图 1　LOTUS 新徽标：分子骨架与叶片共同构成“世界之树”的视觉母题。</div>
+    </div>
+    <div class="shot">
+      <img src="preview-tree.png" alt="世界树全景" />
+      <div class="cap">图 2　世界树全景：227,319 条 LOTUS 结构按生态层位分布在天空、冠层、树干、根际与土壤。</div>
+    </div>
+    <div class="shot">
+      <img src="preview-clock.png" alt="二十四节气钟表" />
+      <div class="cap">图 3　待机时钟：星点按校徽明暗采样重排为二十四节气表盘，指针上缠绕叶片。</div>
+    </div>
+    <div class="shot">
+      <img src="preview-3d.png" alt="3D 球棍分子" />
+      <div class="cap">图 4　3D 球棍分子：由 LOTUS SMILES 经 RDKit ETKDG 离线生成，支持拖动旋转与滚轮缩放。</div>
+    </div>
+  </div>
+
+  <h2>截图建议</h2>
+  <p class="note">
+    提交版可在本节补充 2–3 张实际界面截图：AI 分析坞的工具轨迹、RAG 引用/研究简报、数据核对冲突卡。
+    截图时不要露出 API Key、<code>.env</code>、服务器地址或个人信息。
+  </p>
+</section>
+
+<section class="page">
+  <h1 class="sec">六、项目之前是否发表过或获奖</h1>
+  <p>
+    本项目为团队课程作品，截至提交日<strong>未公开发表</strong>，也<strong>未获得其他赛事或奖项</strong>。
+    项目使用的 LOTUS 数据为 CC0，Three.js、RDKit.js 等开源依赖按其许可证使用，具体见仓库 <code>NOTICE.md</code>。
+  </p>
+
+  <h1 class="sec" style="margin-top:8mm">七、若项目是在其他项目基础上优化，请说明优化部分</h1>
+  <p>
+    本项目为团队原创实现。数据来自 LOTUS Initiative frozen 260413（CC0）；
+    使用 Three.js、RDKit.js 等开源库，并按照其许可证保留 NOTICE 与依赖说明。
+    与团队早期“生态挂点 / 星点树”原型相比，主要优化如下：
+  </p>
+  <ol>
+    <li>从静态星点展示升级为可检索、可筛选、可收藏、可领养的三维探索界面；</li>
+    <li>新增 AI 分析坞、工具调用、RAG 知识库、多模态识图和研究会话；</li>
+    <li>新增数据核对、相似分子、表格统计、研究简报导出；</li>
+    <li>新增 20 万级 3D 构象、Morgan 相似分子索引和按需分片加载；</li>
+    <li>新增单端口部署、同源代理、配置锁、限流和公网防护；</li>
+    <li>新增自适应 DPR、大屏面板适配和 H 键隐藏 UI。</li>
+  </ol>
+
+  <h2>参考资料与链接</h2>
+  <table>
+    <tr><th style="width:26%">项目</th><th>地址 / 说明</th></tr>
+    <tr><td>源码仓库</td><td>https://github.com/touzhuzri/eco-hotspots</td></tr>
+    <tr><td>技术文档</td><td>docs/世界之树-技术文档.pdf（18 页）</td></tr>
+    <tr><td>LOTUS</td><td>Rutz et al. 2022, eLife 11:e70780；LOTUS frozen 260413（CC0）</td></tr>
+    <tr><td>开源依赖</td><td>Three.js、RDKit.js；许可证与声明见 NOTICE.md</td></tr>
+  </table>
+
+  <div class="footer">
+    <span>世界之树 · 作品介绍文档 · v1.0</span>
+    <span>华中农业大学 · 刘同字 / 刘峥 / 张少杰 · 指导老师 刘思思</span>
+  </div>
+</section>
+
+</body>
+</html>
